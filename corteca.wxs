@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+    <Product Id="*" Name="CortecaCLI" Version="$(var.Version)" Manufacturer="NOKIA" UpgradeCode="$(var.Guid)" Language="1033">
+        <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
+		<Media Id="1" Cabinet="corteca.cab" EmbedCab="yes"/>		
+		<Directory Id="TARGETDIR" Name="SourceDir">
+            <Directory Id="ProgramFiles64Folder">
+                <!-- Directory for the executable -->
+                <Directory Id="INSTALLFOLDER" Name="Corteca"/>
+            </Directory>
+
+			<Directory Id="CommonAppDataFolder">
+                <!-- Directory for config and templates -->
+				<Directory Id="PROGRAMDATADIR" Name="Corteca"/>
+            </Directory>
+        </Directory>
+
+        <Feature Id="ProductFeature" Title="CortecaCLI" Level="1">
+            <ComponentGroupRef Id="CortecaExeComponentGroup" />
+            <ComponentGroupRef Id="CortecaConfigComponentGroup" />
+        </Feature>
+    </Product>
+</Wix>
