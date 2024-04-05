@@ -1,0 +1,11 @@
+{
+  "name": "corteca-toolchain-armv8",
+  "image": "ghcr.io/nokia/corteca-toolchain-armv8:23.12.1",
+  "mounts": [
+    {
+      "source": "${localWorkspaceFolder}",
+      "target": "/app",
+      "type": "bind"
+    }
+  ]
+}
