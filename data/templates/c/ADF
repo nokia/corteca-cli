@@ -1,0 +1,42 @@
+{
+  "annotations": {
+    "com.nokia.app_name": "{{.app.name}}",
+    "com.nokia.app_version": "{{.app.version}}",
+    "com.nokia.unprivileged": false,
+    "com.nokia.embedded_rootfs": true,
+    "com.nokia.embedded_package": {
+      "name": "rootfs.tar.gz",
+      "type": "tar"
+    }
+  },
+  "hostname": "{{.app.name}}",
+  "config": {
+    "Cmd": [
+      "/bin/{{.app.name}}"
+    ]
+  },
+  "mounts": [
+    {
+      "destination": "/opt",
+      "source": "/var/run/ubus-session",
+      "options": [
+        "rbind",
+        "rw"
+      ]
+    }
+  ],
+  "network": {
+    "type": "share"
+  },
+  "linux": {
+    "resources": {
+      "memory": {
+        "limit": "10M"
+      },
+      "cpu": {
+        "quota": "5",
+        "period": "100"
+      }
+    }
+  }
+}

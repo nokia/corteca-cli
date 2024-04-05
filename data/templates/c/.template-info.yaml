@@ -1,0 +1,7 @@
+name: "c"
+description: "An application template for the C language."
+options:
+    - name: "include_libhlapi"
+      description: "Include hlapi C library"
+      type: "boolean"
+      default: true

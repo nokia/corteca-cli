@@ -1,0 +1,7 @@
+name: "go"
+description: "An application template for the Go language."
+options:
+    - name: "use_libhlapi_module"
+      description: "Require hlapi module"
+      type: "boolean"
+      default: true

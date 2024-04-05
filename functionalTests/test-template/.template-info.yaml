@@ -1,0 +1,22 @@
+name: "test"
+description: "A test template"
+options:
+    - name: test_flag
+      description: test_flag
+      type: boolean
+      default: true
+
+    - name: "test_value"
+      description: "test_value"
+      type: text
+      default: some_test_value
+
+    - name: "test_choice"
+      description: "test_choice"
+      type: choice
+      default: third
+      values:
+      - first
+      - second
+      - third
+

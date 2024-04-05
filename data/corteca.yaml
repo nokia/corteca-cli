@@ -1,0 +1,95 @@
+# Application settings
+# --------------------
+# These will be defined per project scope. Any modifications you make to the
+# global app settings will be picked up as defaults when creating a new
+# application.
+#
+# app:
+#     lang: <lang-template>       # an application template name
+#     title: <application-title>  # an application title (will be used for Corteca cloud metadata)
+#     name: <test-app>            # single word identifier which cannot contain
+#                                 # spaces (will be used for artifact naming)
+#     author: <author>            # application author (will be used for Corteca cloud metadata)
+#     description: |
+#       <application description> # multiline description (will be used for Corteca cloud metadata)
+#     version: <version>          # application version (will be used for Corteca cloud metadata)
+#     duid: <DUID>                # will be generated automatically from FQDN,
+#                                 # and will be used to uniquely identify the application
+#     options: {}                 # template specific options
+
+
+# Toolchain settings
+# ------------------
+# Build toolchain settings; these must exist in the system docker cache under
+# the name specifed by the 'image' field below. Perform a `docker pull <image>`
+# and optionally a `docker tag <old-name> <new-name>` to name your images appropriately.
+build:
+    # available toolchain (target) images
+    # must contain entries in the form:
+    #   <toolchain-alias>:
+    #     image: <docker-image-name>
+    #     configFile: <buildroot config file>
+    toolchains:
+        armv7:
+            image: ghcr.io/nokia/corteca-toolchain-armv7:23.12.1
+        armv8:
+            image: ghcr.io/nokia/corteca-toolchain-armv8:23.12.1
+    # default toolchain to use when building if none specifed
+    default: armv8
+    options:
+    # Do not inherit variables from the host environment (proxies etc)
+    # skipHostEnv: false
+        env:
+        # Specify custom variables inside build environment
+        # <name>: <value>
+
+
+# Deploy settings
+# ---------------
+# Specify the commands to use when deploying an application artifact to a device
+deploy:
+    # a sequence (array) of commands that will be executed on the device; if
+    # any command fails, sequence will be interrupted
+    # TODO: document the available context variables
+    sequence:
+        # each entry must be in the form of:
+        # - cmd: <command to execute>
+        #   retries: <number>         # how many times to retry the cmd in case of failure
+        #   delay: <milliseconds>     # delay before next command or retry
+        #   expectedOutput: <output>  # if provided, return output of cmd will be compared with this
+        #                             # value; if the don't match cmd will be considered failed
+    # filename of deploy logs (for SSH)
+    logFile: .deploy.log
+
+
+# Publish targets (endpoints)
+# ---------------------------
+# Specify a set of endpoints where the application can be published (to be downloaded from)
+# each entry must be in the form of:
+#   <alias>:
+#       method: <method>    # one of `listen`, `put`, `copy`
+#       addr: <url>         # url of endpoint
+#       auth: <type>        # authentication type; one of `basic`, `bearer`, `password`
+#       token: <auth-token> # authentication token for `bearer` authentication
+publish:
+    local:
+        addr: http://0.0.0.0:8080
+        method: listen
+#   webserver:
+#       addr: https://upload.example.com/artifacts/
+#       auth: basic
+#       method: put
+
+
+# Devices
+# -------
+# A set of devices to deploy the application artifact(s)
+# each entry must be in the form of:
+#   <alias>:
+#       addr: <url>                         # url of device console (only `ssh` protocol is currently supported)
+#       auth: <type>                        # authentication type; one of `password`, `publicKey`
+#       privateKeyFile: <path/to/file/name> # path to keyfile for private key authentication
+#       source:
+#           publish: <alias>                # an alias to a target (see above) to publish the artifacts before deployment
+#           url: <public-url>               # the public url to download the artifact(s) from inside the device
+devices:
