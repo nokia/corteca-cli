@@ -34,6 +34,14 @@ var (
 	configOverrides  []string
 	languages        map[string]templating.TemplateInfo
 	appVersion       string
+	denv             string
+)
+
+var (
+	// mutually exclusive
+	denvDev          bool
+	denvStaging      bool
+	denvProd         bool
 )
 
 var rootCmd = &cobra.Command{
@@ -51,6 +59,11 @@ func init() {
 	rootCmd.PersistentFlags().StringSliceVarP(&configOverrides, "config", "c", []string{}, "Override configuration values in the form of comma-separated 'key=value' pairs")
 	rootCmd.PersistentFlags().StringVarP(&systemConfigRoot, "configRoot", "r", systemConfigRoot, "Override configuration root folder")
 	rootCmd.PersistentFlags().StringVarP(&projectRoot, "cwd", "C", projectRoot, "Specify project current working directory")
+	// Deloyment stage
+	rootCmd.PersistentFlags().BoolVar(&denvDev, "dev", false, "Deployment stage 'dev'")
+	rootCmd.PersistentFlags().BoolVar(&denvStaging, "staging", false, "Deployment stage 'staging'")
+	rootCmd.PersistentFlags().BoolVar(&denvProd, "prod", false, "Deployment stage 'prod'")
+	rootCmd.MarkFlagsMutuallyExclusive("dev", "staging", "prod")
 }
 
 func Execute() {
@@ -58,6 +71,7 @@ func Execute() {
 }
 
 func initConfiguration() {
+	initEnvironment()
 	config = configuration.NewConfiguration()
 
 	// system global configuration
@@ -80,6 +94,17 @@ func initConfiguration() {
 	// override config values
 	assertOperation("parsing configuration overrides", overrideConfigValues())
 	// TODO: validate configuration settings
+}
+
+func initEnvironment() {
+	if denvStaging {
+		denv = "staging"
+	} else if denvProd {
+		denv = "prod"
+	} else {
+		denv = "dev" // default value
+		denvDev = true
+	}
 }
 
 func overrideConfigValues() error {
