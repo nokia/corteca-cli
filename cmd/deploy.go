@@ -37,6 +37,7 @@ func doDeployApp(deviceName string) {
 	context := map[string]any{
 		"device": configuration.ToDictionary(deployDevice),
 		"app":    configuration.ToDictionary(config.App),
+		"denv":   denv,
 	}
 	context["device"].(map[string]any)["name"] = deviceName
 
