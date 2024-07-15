@@ -17,24 +17,27 @@ import (
 	"text/template"
 
 	"github.com/spf13/afero"
-	"gopkg.in/yaml.v3"
 )
 
 const TemplateInfoFile string = ".template-info.yaml"
 
 type TemplateCustomOption struct {
-	Name        string   `yaml:"name,omitempty"`
-	Description string   `yaml:"description,omitempty"`
-	Type        string   `yaml:"type,omitempty"`
-	Default     any      `yaml:"default,omitempty"`
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Type        string   `yaml:"type"`
+	Default     any      `yaml:"default"`
 	Values      []string `yaml:"values,omitempty"`
 }
 
 type TemplateInfo struct {
-	Name        string `yaml:"name,omitempty"`
-	Description string `yaml:"description,omitempty"`
-	Path        string `yaml:"-"`
-	Options     []TemplateCustomOption
+	Name         string `yaml:"name"`
+	Description  string `yaml:"description"`
+	Dependencies struct {
+		Compile []string `yaml:"compile"`
+		Runtime []string `yaml:"runtime"`
+	} `yaml:"dependencies"`
+	Path    string `yaml:"-"`
+	Options []TemplateCustomOption
 }
 
 const (
@@ -104,7 +107,7 @@ func getFileList(fs afero.Fs, rootFolder string) ([]string, error) {
 }
 
 func RenderTemplateString(tmpl string, context any) (string, error) {
-	nameTmpl, err := template.New("").Option("missingkey=error").Parse(tmpl)
+	nameTmpl, err := template.New("").Funcs(template.FuncMap{"getEnv": GetEnvVar}).Option("missingkey=error").Parse(tmpl)
 	if err != nil {
 		return "", err
 	}
@@ -189,14 +192,18 @@ func readTemplateInfo(fullPath string) (info TemplateInfo, err error) {
 	}
 	defer yamlData.Close()
 
-	dec := yaml.NewDecoder(yamlData)
-
-	dec.KnownFields(configuration.STRICT_DECODING_OPT)
-	err = dec.Decode(&info)
-	if err != nil {
+	if err = configuration.ReadYamlInto(&info, yamlData); err != nil {
 		return
 	}
 	// TODO: validate template info
 	info.Path = filepath.Dir(fullPath)
 	return
+}
+
+func GetEnvVar(envVarName string, defaultValue ...string) string {
+	envVarValue, exists := os.LookupEnv(envVarName)
+	if !exists && len(defaultValue) == 0 {
+		return defaultValue[0]
+	}
+	return envVarValue
 }

@@ -24,19 +24,18 @@ var configCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 }
 
-var showCmd = &cobra.Command{
-	Use:   "show",
-	Short: "Show current configuration",
-	Long:  "Show all configuration settings in json format",
-	Run:   func(cmd *cobra.Command, args []string) { doShowConfig() },
-}
-
 var getCmd = &cobra.Command{
 	Use:   "get key",
 	Short: "Read a configuration value",
 	Long:  "Read a configuration value",
-	Args:  cobra.ExactArgs(1),
-	Run:   func(cmd *cobra.Command, args []string) { doGetConfigValue(args[0]) },
+	Args:  cobra.MaximumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		key := ""
+		if len(args) > 0 {
+			key = args[0]
+		}
+		doGetConfigValue(key)
+	},
 }
 
 var setCmd = &cobra.Command{
@@ -44,34 +43,45 @@ var setCmd = &cobra.Command{
 	Short: "Set a configuration value",
 	Long:  "Set a configuration value",
 	Args:  cobra.ExactArgs(2),
-	Run:   func(cmd *cobra.Command, args []string) { doSetConfigValue(args[0], args[1]) },
+	Run:   func(cmd *cobra.Command, args []string) { doSetConfigValue(args[0], args[1], false) },
+}
+
+var addCmd = &cobra.Command{
+	Use:   "add key value",
+	Short: "Add (append) a configuration value",
+	Long:  "Add (append) a configuration value",
+	Args:  cobra.ExactArgs(2),
+	Run:   func(cmd *cobra.Command, args []string) { doSetConfigValue(args[0], args[1], true) },
 }
 
 func init() {
 	configCmd.PersistentFlags().BoolVar(&affectGlobalConfig, "global", false, "Affect global config")
-	configCmd.AddCommand(showCmd)
 	configCmd.AddCommand(getCmd)
 	configCmd.AddCommand(setCmd)
+	configCmd.AddCommand(addCmd)
 	rootCmd.AddCommand(configCmd)
 }
 
-func doShowConfig() {
-	encoder := yaml.NewEncoder(os.Stdout)
-	encoder.SetIndent(configuration.INDENTATION)
-	encoder.Encode(config)
-}
-
 func doGetConfigValue(key string) {
+	var (
+		field any
+		err   error
+	)
+
 	if affectGlobalConfig {
-		assertOperation("retrieving configuration value", configGlobal.ReadField(key, os.Stdout))
+		field, err = configGlobal.ReadField(key)
 	} else {
-		assertOperation("retrieving configuration value", config.ReadField(key, os.Stdout))
+		field, err = config.ReadField(key)
 	}
+	assertOperation("retrieving config value", err)
+	enc := yaml.NewEncoder(os.Stdout)
+	enc.SetIndent(configuration.INDENTATION)
+	enc.Encode(field)
 }
 
-func doSetConfigValue(key, value string) {
+func doSetConfigValue(key, value string, append bool) {
 	if affectGlobalConfig {
-		assertOperation("writing configuration value", configGlobal.WriteField(key, value))
+		assertOperation("writing configuration value", configGlobal.WriteField(key, value, append))
 		// TODO: validate configuration settings
 		assertOperation("writing configuration file", configGlobal.WriteConfiguration(userConfigRoot, &configSystem))
 	} else {
@@ -79,9 +89,9 @@ func doSetConfigValue(key, value string) {
 			fmt.Fprintln(os.Stderr, "Called outside of project scope; refusing to modify global configuration unless '--global' is explicitly specified.")
 			os.Exit(1)
 		}
-		assertOperation("writing configuration value", config.WriteField(key, value))
+		assertOperation("writing configuration value", config.WriteField(key, value, append))
 		// TODO: validate configuration settings
-		assertOperation("validating application settings", validateAppSettings(true))
+		assertOperation("validating application settings", validateAppSettings(false))
 		assertOperation("writing configuration file", config.WriteConfiguration(projectRoot, &configGlobal))
 	}
 }

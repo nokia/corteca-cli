@@ -199,9 +199,6 @@ func (c *Connection) ExecuteCommand(cmd configuration.SequenceCmd, context any) 
 		}
 		fmt.Printf("=> Send cmd: '%v'...\n", cmdStr)
 
-		if err != nil {
-			return err
-		}
 		output, _, err := c.SendCmd(cmdStr)
 		if err != nil {
 			return err
@@ -255,12 +252,6 @@ func keyboardChallenge(name, instruction string, questions []string, echos []boo
 	return answers, nil
 }
 
-// Map values should be inline with toolchain output
-var machineToArchMap = map[string]string{
-	"aarch64": "armv8",
-	"armv7l":  "armv7",
-}
-
 const cpuArchDiscoveryCmd = "uname -m"
 
 func DiscoverTargetCPUarch(c Connection) (string, error) {
@@ -269,12 +260,5 @@ func DiscoverTargetCPUarch(c Connection) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	result, ok := machineToArchMap[cpuArch]
-
-	if !ok {
-		return "", fmt.Errorf("unsupported CPU arch %v", cpuArch)
-	}
-
-	return result, nil
+	return cpuArch, nil
 }

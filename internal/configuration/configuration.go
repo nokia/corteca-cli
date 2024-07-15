@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/bits"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -30,33 +29,55 @@ const (
 )
 
 type BuildOptions struct {
-	SkipHostEnv bool              `yaml:"skipHostEnv,omitempty"`
-	Env         map[string]string `yaml:"env,omitempty"`
+	OutputType 	 string              `yaml:"outputType"`
+	DebugMode      bool              `yaml:"debug"`
+	SkipHostEnv    bool              `yaml:"skipHostEnv,omitempty"`
+	Env            map[string]string `yaml:"env"`
 }
 
 type AppSettings struct {
-	Lang        string         `yaml:"lang,omitempty"`
-	Title       string         `yaml:"title,omitempty"`
-	Name        string         `yaml:"name,omitempty"`
-	Author      string         `yaml:"author,omitempty"`
-	Description string         `yaml:"description,omitempty"`
-	Version     string         `yaml:"version,omitempty"`
-	FQDN        string         `yaml:"fqdn,omitempty"`
-	DUID        string         `yaml:"duid,omitempty"`
-	Options     map[string]any `yaml:"options,omitempty"`
+	Lang         string            `yaml:"lang"`
+	Title        string            `yaml:"title"`
+	Name         string            `yaml:"name"`
+	Author       string            `yaml:"author"`
+	Description  string            `yaml:"description"`
+	Version      string            `yaml:"version"`
+	FQDN         string            `yaml:"fqdn"`
+	DUID         string            `yaml:"duid"`
+	Options      map[string]any    `yaml:"options"`
+	Dependencies Dependencies      `yaml:"dependencies"`
+	Env          map[string]string `yaml:"env"`
+	Entrypoint   string            `yaml:"entrypoint"`
 }
+
+type Dependencies struct {
+	Compile []string `yaml:"compile"`
+	Runtime []string `yaml:"runtime"`
+}
+
+type ArchitectureSettings struct {
+	Platform string `yaml:"platform"`
+}
+
+type ArchitecturesMap map[string]ArchitectureSettings
 
 type ToolchainSettings struct {
-	Image      string `yaml:"image,omitempty"`
-	ConfigFile string `yaml:"configFile,omitempty"`
+	Image         string           `yaml:"image"`
+	Architectures ArchitecturesMap `yaml:"architectures"`
 }
 
-type Toolchains map[string]ToolchainSettings
+type CrossCompileConfig struct {
+	Enabled bool     `yaml:"enabled"`
+	Image   string   `yaml:"image"`
+	Args    []string `yaml:"args"`
+}
 
 type BuildSettings struct {
-	Toolchains Toolchains   `yaml:"toolchains,omitempty"`
-	Default    string       `yaml:"default,omitempty"`
-	Options    BuildOptions `yaml:"options,omitempty"`
+	Toolchains         ToolchainSettings  `yaml:"toolchains"`
+	Default            string             `yaml:"default,omitempty"`
+	Options            BuildOptions       `yaml:"options"`
+	CrossCompile       CrossCompileConfig `yaml:"crossCompile"`
+	DockerFileTemplate string             `yaml:"dockerFileTemplate,omitempty"`
 }
 
 type PublishMethod int
@@ -218,31 +239,11 @@ type DeploySettings struct {
 }
 
 type Settings struct {
-	App     AppSettings              `yaml:"app,omitempty"`
-	Build   BuildSettings            `yaml:"build,omitempty"`
-	Deploy  DeploySettings           `yaml:"deploy,omitempty"`
+	App     AppSettings              `yaml:"app"`
+	Build   BuildSettings            `yaml:"build"`
+	Deploy  DeploySettings           `yaml:"deploy"`
 	Publish map[string]PublishTarget `yaml:"publish,omitempty"`
 	Devices map[string]DeployDevice  `yaml:"devices,omitempty"`
-}
-
-func (toolchain *Toolchains) UnmarshalYAML(data *yaml.Node) error {
-	if data.Kind != yaml.MappingNode {
-		return errors.New("wrong value type")
-	}
-
-	for i := 0; i < len(data.Content); i += 2 {
-		var alias string
-		if err := data.Content[i].Decode(&alias); err != nil {
-			return err
-		}
-		settings := (*toolchain)[alias]
-		if err := data.Content[i+1].Decode(&settings); err != nil {
-			return err
-		}
-		(*toolchain)[alias] = settings
-	}
-
-	return nil
 }
 
 func NewConfiguration() Settings {
@@ -251,7 +252,10 @@ func NewConfiguration() Settings {
 			Options: map[string]any{},
 		},
 		Build: BuildSettings{
-			Toolchains: map[string]ToolchainSettings{},
+			Toolchains: ToolchainSettings{
+				Image:         "",
+				Architectures: make(ArchitecturesMap),
+			},
 		},
 		Deploy: DeploySettings{
 			Sequence: []SequenceCmd{},
@@ -266,13 +270,8 @@ func (conf *Settings) ReadFromFile(path string) error {
 	if err != nil {
 		return err
 	}
-
 	defer in.Close()
-
-	decoder := yaml.NewDecoder(in)
-	decoder.KnownFields(STRICT_DECODING_OPT)
-
-	if err = decoder.Decode(conf); err != nil {
+	if err = ReadYamlInto(conf, in); err != nil {
 		in.Close()
 		return err
 	}
@@ -296,52 +295,143 @@ func (conf *Settings) WriteToFile(path string) error {
 	return out.Close()
 }
 
-func (conf *Settings) ReadField(fieldPath string, output io.Writer) error {
-	field, _, err := retrieveField(reflect.ValueOf(conf), fieldPath, false)
-	if err != nil {
-		return err
-	}
-
-	return yaml.NewEncoder(output).Encode(field.Interface())
-}
-
-func (conf *Settings) WriteField(fieldPath, value string) error {
-	field, restPath, err := retrieveField(reflect.ValueOf(conf), fieldPath, true)
-	if err != nil {
-		return err
-	}
-	if restPath != "" {
-		m := field.Elem().Interface().(map[string]any)
-		setKeyValuePair(m, restPath, value)
-	} else if !field.CanSet() {
-		return fmt.Errorf("cannot set value of '%v'", fieldPath)
-	} else {
-		switch field.Type().Kind() {
-		case reflect.Bool:
-			v, err := strconv.ParseBool(value)
-			if err != nil {
-				return err
+func (conf Settings) ReadField(fieldPath string) (any, error) {
+	keySequence := strings.Split(fieldPath, ".")
+	field := reflect.ValueOf(conf)
+	for index, key := range keySequence {
+		if index == 0 && len(key) == 0 {
+			// edge case: first elem is empty
+			continue
+		}
+		// if field is a pointer, dereference
+		if field.Kind() == reflect.Ptr {
+			field = field.Elem()
+		}
+		t := field.Kind()
+		switch t {
+		case reflect.Struct:
+			field = fieldByEncodingName(field, key)
+			if !field.IsValid() {
+				return nil, fmt.Errorf("invalid field '%s'", key)
 			}
-			field.SetBool(v)
-		case reflect.Uint:
-			v, err := strconv.ParseUint(value, 10, bits.UintSize)
-			if err != nil {
-				return err
+		case reflect.Map:
+			field = field.MapIndex(reflect.ValueOf(key))
+			if !field.IsValid() {
+				return nil, fmt.Errorf("invalid field '%s'", key)
 			}
-			field.SetUint(v)
-		case reflect.Int:
-			v, err := strconv.ParseInt(value, 10, bits.UintSize)
+		case reflect.Array, reflect.Slice:
+			i, err := strconv.Atoi(key)
 			if err != nil {
-				return err
+				return nil, fmt.Errorf("cannot index sequence field with non-numeric key '%s'", key)
 			}
-			field.SetInt(v)
-		case reflect.String:
-			field.SetString(value)
+			if i < 0 || i >= field.Len() {
+				return nil, fmt.Errorf("index %d out of range", i)
+			}
+			field = field.Index(i)
 		default:
-			return fmt.Errorf("unsupported field type '%v'", field.Kind().String())
+			return nil, fmt.Errorf("cannot address element of type '%s' with key '%s'", t.String(), key)
 		}
 	}
+	return field.Interface(), nil
+}
+
+func (conf *Settings) WriteField(fieldPath, value string, append bool) (err error) {
+	defer func() {
+		if e := recover(); e != nil {
+			err = fmt.Errorf("%v", e)
+		}
+	}()
+	writeValueHelper(reflect.ValueOf(conf), fieldPath, value, append)
 	return nil
+}
+
+// recursive function to write a (nested) value inside a container; value will
+// be parsed as yaml based on the type of the final element of the fieldpath. if
+// append is true, value will be added to the Map or Slice final type; function
+// will panic if not appending to proper type; if all goes well, the function
+// will return the updated container
+func writeValueHelper(container reflect.Value, fieldPath string, value string, append bool) reflect.Value {
+	if container.Kind() == reflect.Ptr {
+		container = container.Elem()
+	}
+	if len(fieldPath) != 0 {
+		// walk property field path
+		key, restpath, _ := strings.Cut(fieldPath, ".")
+		switch container.Kind() {
+		case reflect.Struct:
+			field := fieldByEncodingName(container, key)
+			if !field.IsValid() {
+				panic(fmt.Errorf("invalid field '%s'", key))
+			}
+			field.Set(writeValueHelper(field, restpath, value, append))
+
+		case reflect.Map:
+			field := container.MapIndex(reflect.ValueOf(key))
+			if !field.IsValid() {
+				panic(fmt.Errorf("invalid field '%s'", key))
+			}
+			// make a clone
+			newfield := reflect.New(field.Type())
+			newfield.Elem().Set(field)
+			// assign new field to map
+			container.SetMapIndex(reflect.ValueOf(key), writeValueHelper(newfield, restpath, value, append))
+
+		case reflect.Array, reflect.Slice:
+			i, err := strconv.Atoi(key)
+			if err != nil {
+				panic(fmt.Errorf("cannot index sequence field with non-numeric key '%s'", key))
+			}
+			if i < 0 || i >= container.Len() {
+				panic(fmt.Errorf("index %d out of range", i))
+			}
+			container.Index(i).Set(writeValueHelper(container.Index(i), restpath, value, append))
+
+		default:
+			panic(fmt.Errorf("cannot address element of type '%s' with key '%s'", container.Kind().String(), key))
+		}
+	} else {
+		// final value case:
+		// new value will have the same type as the container
+		newValtype := container.Type()
+		if append {
+			// except if we are appending to a slice, where type is slice's element type
+			if container.Kind() == reflect.Slice {
+				newValtype = container.Type().Elem()
+			} else if container.Kind() != reflect.Map {
+				// if we attempt to append to anything other than a slice or a map, fail
+				panic(fmt.Errorf("cannot append value(s) to a '%s'", container.Kind().String()))
+			}
+		}
+		v := reflect.New(newValtype)
+		// accept special format of KEY=VALUE (for shell convenience) and reformat it as yaml
+		if key, val, found := strings.Cut(value, "="); found {
+			value = fmt.Sprintf("{ %s: %s }", key, val)
+		}
+		// parse string as yaml inside the newly created value
+		if err := ReadYamlInto(v.Interface(), strings.NewReader(value)); err != nil {
+			panic(fmt.Errorf("'%s' is not a %s", value, container.Type().Kind().String()))
+		}
+		// when not appending ('set' case), new value will replace previous (container)
+		if !append {
+			return v.Elem()
+		}
+		// when appending ('add' case), handle map and slice differently
+		if container.Kind() == reflect.Map {
+			// edge case: appending to an empty (nil) container
+			if container.IsNil() {
+				container.Set(v.Elem())
+			} else {
+				iter := v.Elem().MapRange()
+				for iter.Next() {
+					container.SetMapIndex(iter.Key(), iter.Value())
+				}
+			}
+		} else if container.Kind() == reflect.Slice {
+			container = reflect.Append(container, v.Elem())
+		}
+	}
+	// return final container to replace previous one
+	return container
 }
 
 func ToDictionary(conf any) map[string]any {
@@ -432,55 +522,34 @@ func computeDelta(prev, curr map[string]any) map[string]any {
 	return delta
 }
 
-func retrieveField(v reflect.Value, fieldPath string, addressable bool) (reflect.Value, string, error) {
-	for {
-		// if we need addressable values inside a map (with string keys) we need
-		// to leave reflection and provide access to the map directly
-		if addressable && v.Elem().Type().Kind() == reflect.Map && v.Elem().Type().Key().Kind() == reflect.String {
-			return v, fieldPath, nil
-		}
-		fieldName, restPath, _ := strings.Cut(fieldPath, ".")
-		field := fieldByEncodingName(v.Elem(), fieldName, ENCODING)
-		if !field.IsValid() {
-			return reflect.Value{}, restPath, fmt.Errorf("field '%v' not found", fieldName)
-		} else if restPath == "" {
-			return field, "", nil
-		}
-		v = field.Addr()
-		fieldPath = restPath
-	}
-}
-
 // Find field by `encoding` tag name
-func fieldByEncodingName(v reflect.Value, name string, encoding string) reflect.Value {
-	if v.Kind() != reflect.Struct {
-		return reflect.Value{}
-	}
+func fieldByEncodingName(v reflect.Value, name string) reflect.Value {
 	for i := 0; i < v.Type().NumField(); i++ {
 		tag := v.Type().Field(i).Tag
 
-		if encodingTag, ok := tag.Lookup(encoding); ok {
+		if encodingTag, ok := tag.Lookup(ENCODING); ok {
 			// `encoding` tag (ex: json, yaml, xml) consists comma-separated values, where first one is always the encoding's name
-			EncodingName := strings.Split(encodingTag, ",")[0]
-			if EncodingName == name {
+			encodingName := strings.Split(encodingTag, ",")[0]
+			// match encoding tag name, or field name if former is not present
+			if encodingName == name {
 				return v.Field(i)
+			}
+		}
+	}
+	// field name not found, search anonymous (embedded) structs
+	for i := 0; i < v.Type().NumField(); i++ {
+		if v.Type().Field(i).Anonymous && v.Type().Field(i).Type.Kind() == reflect.Struct {
+			value := fieldByEncodingName(v.Field(i), name)
+			if value.IsValid() {
+				return value
 			}
 		}
 	}
 	return reflect.Value{}
 }
 
-func setKeyValuePair(v map[string]any, fieldPath string, value any) error {
-	for {
-		fieldName, restPath, _ := strings.Cut(fieldPath, ".")
-		if restPath == "" {
-			v[fieldName] = value
-			return nil
-		} else {
-			v[fieldName] = map[string]any{}
-			v = v[fieldName].(map[string]any)
-			fieldPath = restPath
-		}
-	}
+func ReadYamlInto(value interface{}, in io.Reader) error {
+	dec := yaml.NewDecoder(in)
+	dec.KnownFields(STRICT_DECODING_OPT)
+	return dec.Decode(value)
 }
-

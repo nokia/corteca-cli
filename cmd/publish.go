@@ -46,7 +46,7 @@ func doPublishApp(targetName string, arch string, wait bool) {
 		failOperation(fmt.Sprintf("publish target '%s' not found", targetName))
 	}
 
-	if _, found = buildArtifacts[arch]; !found && arch != "" {
+	if _, found = cmdContext.BuildArtifacts[arch]; !found && arch != "" {
 		failOperation(fmt.Sprintf("No build artifact found for specified architecture \"%v\"", arch))
 	}
 
@@ -89,7 +89,7 @@ func doListen(target configuration.PublishTarget, wait bool) {
 
 func doPut(arch string, url *url.URL, token string) {
 
-	for artifactArch, artifactBinaryFile := range buildArtifacts {
+	for artifactArch, artifactBinaryFile := range cmdContext.BuildArtifacts {
 		if arch == "" || artifactArch == arch {
 			if err := publish.HttpPut(artifactBinaryFile, *url, token); err != nil {
 				assertOperation(fmt.Sprintf("while uploading file \"%s\" with HTTP(S) PUT", artifactBinaryFile), err)

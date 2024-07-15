@@ -7,7 +7,6 @@
     author: {{ .app.author }}
 */
 
-//{{if .app.options.include_libhlapi}}#include <libhlapi.h>{{end}}
 
 int main()
 {
