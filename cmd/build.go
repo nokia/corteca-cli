@@ -5,10 +5,11 @@
 package cmd
 
 import (
+	"corteca/internal/builder"
 	"corteca/internal/configuration"
-	"corteca/internal/toolchain"
 	"corteca/internal/tui"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -28,7 +29,10 @@ var buildCmd = &cobra.Command{
 	},
 }
 
-var buildAll bool
+var (
+	buildAll bool
+    outputType string
+)
 
 func init() {
 	buildCmd.PersistentFlags().BoolVar(&buildAll, "all", false, "Build for all platforms")
@@ -37,35 +41,109 @@ func init() {
 
 func doBuildApp(selectedName string) {
 	requireProjectContext()
+	selectedName = getToolchainName(selectedName)
+	outputType = strings.ToLower(config.Build.Options.OutputType)
+	cmdContext.Toolchain.Image = config.Build.Toolchains.Image
+	enableCrossCompilation(config.Build.CrossCompile)
 
-	if selectedName == "" {
-		selectedName = config.Build.Default
-	} else if _, ok := config.Build.Toolchains[selectedName]; !ok {
-		failOperation(fmt.Sprintf("no configuration present for toolchain: \"%v\"", selectedName))
-	}
-
-	for toolchainName, toolchain := range config.Build.Toolchains {
-
-		if !buildAll && selectedName != toolchainName {
-			continue
-		}
-
-		fmt.Printf("Building with toolchain '%s'...\n", toolchainName)
-		err := doBuildTarget(toolchain.Image, toolchain.ConfigFile, config.Build.Options)
-		if err != nil {
-			tui.DisplayErrorMsg(fmt.Sprintf("Error building '%s': %s", toolchainName, err.Error()))
-			failOperation("Build failed")
-		}
-		tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully with toolchain '%v'\n", config.App.Name, toolchainName))
+	if buildAll {
+		handleBuildAll()
+	} else {
+		handleSinglePlatformBuild(selectedName)
 	}
 }
 
-func doBuildTarget(targetImage string, customConfig string, buildOptions configuration.BuildOptions) error {
-	err := toolchain.Invoke(targetImage, projectRoot, customConfig, buildOptions)
+func handleBuildAll() {
+	switch outputType {
+	case "rootfs":
+		buildAllRootfs()
+	case "docker", "oci":
+		buildMultiPlatformImage()
+	default:
+		failOperation(fmt.Sprintf("Unknown image type: %s", config.Build.Options.OutputType))
+	}
+}
+
+func handleSinglePlatformBuild(selectedName string) {
+	switch outputType {
+	case "rootfs", "docker", "oci":
+		buildSinglePlatform(selectedName)
+	default:
+		failOperation(fmt.Sprintf("Unknown image type: %s", config.Build.Options.OutputType))
+	}
+}
+
+func getToolchainName(selectedName string) string {
+	if selectedName == "" {
+		return config.Build.Default
+	} else if _, ok := config.Build.Toolchains.Architectures[selectedName]; !ok {
+		failOperation(fmt.Sprintf("no configuration present for toolchain: \"%v\"", selectedName))
+	}
+	return selectedName
+}
+
+func buildAllRootfs() {
+	for name, settings := range config.Build.Toolchains.Architectures {
+		cmdContext.Toolchain.Name = name
+		cmdContext.Toolchain.Platform = settings.Platform
+
+		fmt.Printf("Building rootfs with toolchain '%s'...\n", name)
+		err := doBuildTarget(name, settings.Platform, config.Build.Options)
+		if err != nil {
+			handleBuildError(name, err)
+		}
+		tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully with toolchain '%v'\n", config.App.Name, name))
+	}
+}
+
+func buildMultiPlatformImage() {
+	var platforms []string
+	for _, settings := range config.Build.Toolchains.Architectures {
+		platforms = append(platforms, settings.Platform)
+	}
+	platformArg := strings.Join(platforms, ",")
+
+	fmt.Println("Building multi-platform image for platforms:", platformArg)
+	err := doBuildTarget("multi", platformArg, config.Build.Options)
+	if err != nil {
+		tui.DisplayErrorMsg(fmt.Sprintf("Error building multi-platform image: %s", err.Error()))
+		failOperation("Build failed")
+	}
+	tui.DisplaySuccessMsg("Multi-platform image built successfully")
+}
+
+func buildSinglePlatform(selectedName string) {
+	settings := config.Build.Toolchains.Architectures[selectedName]
+	cmdContext.Toolchain.Name = selectedName
+	cmdContext.Toolchain.Platform = settings.Platform
+
+	fmt.Printf("Building with toolchain '%s'...\n", selectedName)
+	err := doBuildTarget(selectedName, settings.Platform, config.Build.Options)
+	if err != nil {
+		handleBuildError(selectedName, err)
+	}
+	tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully with toolchain '%v'\n", config.App.Name, selectedName))
+}
+
+func handleBuildError(toolchainName string, err error) {
+	tui.DisplayErrorMsg(fmt.Sprintf("Error building '%s': %s", toolchainName, err.Error()))
+	failOperation("Build failed")
+}
+
+func doBuildTarget(architecture string, platform string, buildOptions configuration.BuildOptions) error {
+	builder.GenerateDockerfileFromTemplate(configuration.ToDictionary(cmdContext))
+	err := builder.BuildContainer(config.Build.Toolchains.Image, architecture, platform, projectRoot, config.App.Name, config.App.Version, buildOptions)
 
 	if err != nil {
-		return fmt.Errorf("invoking toolchain image '%v': %v", targetImage, err)
+		return fmt.Errorf("invoking toolchain image '%v': %v", config.Build.Toolchains.Image, err)
 	}
 
+	return nil
+}
+
+func enableCrossCompilation(crossCompileSettings configuration.CrossCompileConfig) error {
+	if err := builder.EnableMultiplatformBuild(crossCompileSettings); err != nil {
+		return fmt.Errorf("setting up QEMU for cross-compilation failed: %w", err)
+	}
 	return nil
 }

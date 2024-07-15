@@ -29,25 +29,45 @@ var (
 	systemConfigRoot string
 	userConfigRoot   string
 	projectRoot      string
-	buildArtifacts   map[string]string
 	distFolder       string
 	configOverrides  []string
 	languages        map[string]templating.TemplateInfo
 	appVersion       string
-	denv             string
 )
+
+var cmdContext struct {
+	App            *configuration.AppSettings `yaml:"app,omitempty"`
+	Arch           string                     `yaml:"arch,omitempty"`
+	BuildArtifacts map[string]string          `yaml:"buildArtifacts,omitempty"`
+	Deplenv        string                     `yaml:"deplenv,omitempty"`
+	Device         struct {
+		configuration.DeployDevice `yaml:",omitempty,inline"`
+		Name                       string `yaml:"name,omitempty"`
+	} `yaml:"device,omitempty"`
+	Source struct {
+		configuration.DownloadSource `yaml:",omitempty,inline"`
+		Name                         string `yaml:"name,omitempty"`
+	} `yaml:"source,omitempty"`
+	Toolchain struct {
+		Image    string `yaml:"image,omitempty"`
+		Name     string `yaml:"name,omitempty"`
+		Platform string `yaml:"platform,omitempty"`
+	} `yaml:"toolchain,omitempty"`
+	Build         *configuration.BuildSettings `yaml:"build,omitempty"`
+	BuildArtifact string                       `yaml:"buildArtifact,omitempty"`
+}
 
 var (
 	// mutually exclusive
-	denvDev          bool
-	denvStaging      bool
-	denvProd         bool
+	denvDev     bool
+	denvStaging bool
+	denvProd    bool
 )
 
 var rootCmd = &cobra.Command{
 	Use:              "corteca",
 	Short:            "Nokia Corteca Developer Toolkit",
-	Long:             `The Corteca Developer Toolkit facilitates in bootstrapping, building and deploying containerized applications for Nokia BroadBand Devices`,
+	Long:             `The Corteca Developer Toolkit facilitates bootstrapping, building and deploying containerized applications for Nokia BroadBand Devices`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) { initConfiguration() },
 	Version:          appVersion,
 }
@@ -56,9 +76,9 @@ func init() {
 	systemConfigRoot, userConfigRoot = platform.SetConfigPaths()
 	rootCmd.SetVersionTemplate("{{.Short}} v{{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
-	rootCmd.PersistentFlags().StringSliceVarP(&configOverrides, "config", "c", []string{}, "Override configuration values in the form of comma-separated 'key=value' pairs")
+	rootCmd.PersistentFlags().StringArrayVarP(&configOverrides, "config", "c", []string{}, "Override a configuration value in the form of a 'key=value' pair")
 	rootCmd.PersistentFlags().StringVarP(&systemConfigRoot, "configRoot", "r", systemConfigRoot, "Override configuration root folder")
-	rootCmd.PersistentFlags().StringVarP(&projectRoot, "cwd", "C", projectRoot, "Specify project current working directory")
+	rootCmd.PersistentFlags().StringVarP(&projectRoot, "projectRoot", "C", projectRoot, "Specify project root folder")
 	// Deloyment stage
 	rootCmd.PersistentFlags().BoolVar(&denvDev, "dev", false, "Deployment stage 'dev'")
 	rootCmd.PersistentFlags().BoolVar(&denvStaging, "staging", false, "Deployment stage 'staging'")
@@ -98,11 +118,11 @@ func initConfiguration() {
 
 func initEnvironment() {
 	if denvStaging {
-		denv = "staging"
+		cmdContext.Deplenv = "staging"
 	} else if denvProd {
-		denv = "prod"
+		cmdContext.Deplenv = "prod"
 	} else {
-		denv = "dev" // default value
+		cmdContext.Deplenv = "dev" // default value
 		denvDev = true
 	}
 }
@@ -113,7 +133,7 @@ func overrideConfigValues() error {
 		if !found {
 			return fmt.Errorf("invalid syntax for option '%v'; use 'key=value'", entry)
 		}
-		if err := config.WriteField(key, val); err != nil {
+		if err := config.WriteField(key, val, false); err != nil {
 			return err
 		}
 	}
@@ -129,7 +149,7 @@ func getLanguages() {
 	assertOperation("searching for user language templates", templating.GetAvailableTemplates(languages, filepath.Join(userConfigRoot, "templates")))
 }
 
-func validateAppSettings(requireNonEmpty bool) error {
+func validateAppSettings(populateDefaults bool) error {
 	getLanguages()
 	var templ templating.TemplateInfo
 	var found bool
@@ -137,19 +157,19 @@ func validateAppSettings(requireNonEmpty bool) error {
 		if templ, found = languages[config.App.Lang]; !found {
 			return fmt.Errorf("no template for language '%v' was found", config.App.Lang)
 		}
-	} else if requireNonEmpty {
+	} else {
 		return fmt.Errorf("no programming language has been specified")
 	}
-	if config.App.Title == "" && requireNonEmpty {
+	if config.App.Title == "" {
 		return fmt.Errorf("no application title has been specified")
 	}
-	if config.App.Name == "" && requireNonEmpty {
+	if config.App.Name == "" {
 		return fmt.Errorf("no application name has been specified")
 	}
-	if config.App.Version == "" && requireNonEmpty {
+	if config.App.Version == "" {
 		return fmt.Errorf("no application version has been specified")
 	}
-	if config.App.FQDN == "" && requireNonEmpty {
+	if config.App.FQDN == "" {
 		return fmt.Errorf("no application FQDN has been specified")
 	} else if config.App.DUID == "" {
 		config.App.DUID = generateDUID(config.App.FQDN)
@@ -166,9 +186,14 @@ func validateAppSettings(requireNonEmpty bool) error {
 				return err
 			}
 			config.App.Options[option.Name] = value
-		} else {
+		} else if populateDefaults {
 			config.App.Options[option.Name] = option.Default
 		}
+	}
+	// populate app dependencies
+	if populateDefaults {
+		config.App.Dependencies.Compile = append(config.App.Dependencies.Compile, templ.Dependencies.Compile...)
+		config.App.Dependencies.Runtime = append(config.App.Dependencies.Runtime, templ.Dependencies.Runtime...)
 	}
 	return nil
 }
@@ -190,13 +215,15 @@ func requireProjectContext() {
 		failOperation("must be run inside a project context")
 		os.Exit(1)
 	}
+	cmdContext.App = &config.App
+	cmdContext.Build = &config.Build
 }
 
 func requireBuildArtifact() {
 	requireProjectContext()
 	distFolder = filepath.Join(projectRoot, distFolderName)
 
-	buildArtifacts = make(map[string]string)
+	cmdContext.BuildArtifacts = make(map[string]string)
 
 	pattern := filepath.Join(distFolder, fmt.Sprintf("%v*.tar.gz", config.App.Name))
 	distFiles, _ := filepath.Glob(pattern)
@@ -214,7 +241,7 @@ func requireBuildArtifact() {
 			cpuArch := matches[1]
 
 			// If we've already selected a build artifact for this CPU architecture, compare modification times.
-			if curArtifactName, ok := buildArtifacts[cpuArch]; ok {
+			if curArtifactName, ok := cmdContext.BuildArtifacts[cpuArch]; ok {
 				curArtifactInfo, err := os.Stat(curArtifactName)
 				if err != nil {
 					failOperation(fmt.Sprintf("stating artifact %s failed: %v", curArtifactName, err))
@@ -227,16 +254,16 @@ func requireBuildArtifact() {
 
 				// Update the selection if the new candidate is more recent.
 				if distFileInfo.ModTime().After(curArtifactInfo.ModTime()) {
-					buildArtifacts[cpuArch] = distFile
+					cmdContext.BuildArtifacts[cpuArch] = distFile
 				}
 			} else {
 				// Found this CPU architecture for the first time, assign current artifact.
-				buildArtifacts[cpuArch] = distFile
+				cmdContext.BuildArtifacts[cpuArch] = distFile
 			}
 		}
 	}
 
-	if len(buildArtifacts) == 0 {
+	if len(cmdContext.BuildArtifacts) == 0 {
 		failOperation("no build artifacts found")
 	}
 }

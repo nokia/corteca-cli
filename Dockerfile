@@ -1,11 +1,15 @@
 ARG GO_VERSION=1.21
+ARG MIRROR_REGISTRY
 
-FROM golang:${GO_VERSION}-alpine AS builder-image
+FROM ${MIRROR_REGISTRY}golang:${GO_VERSION}-alpine AS builder-image
 RUN apk update && apk add \
     binutils \
     make \
     rpm \
     ruby \
+    ruby-dev \
+    gcc \
+    musl-dev \
     tar \
     msitools \
     uuidgen \
@@ -30,7 +34,7 @@ COPY . .
 RUN make msi GOARCH=amd64 && \
     make deb GOARCH=amd64 && \
     make rpm GOARCH=amd64 && \
-    make osx GOARCH=amd64 &&\
+    make osx GOARCH=amd64 && \
     make deb GOARCH=arm64 && \
     make rpm GOARCH=arm64 && \
     make osx GOARCH=arm64

@@ -1,6 +1,6 @@
 #include <stdio.h>
-#include <unistd.h>
 #include <time.h>
+#include <unistd.h>
 
 /*
     {{ .app.title }}
@@ -9,15 +9,12 @@
 
 //{{if .app.options.include_libhlapi}}#include <libhlapi.h>{{end}}
 
-int main()
-{
+int main() {
+  printf("Hello from %s\n", "{{.app.title}}");
 
-   printf("Hello from %s\n", "{{.app.title}}");
+  for (;;) {
+    sleep(5);
+  }
 
-   for (;;)
-   {
-      sleep(5);
-   }
-
-   return 0;
+  return 0;
 }

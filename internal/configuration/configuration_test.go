@@ -51,19 +51,19 @@ func TestReadField(t *testing.T) {
 		name       string
 		fieldPath  string
 		wantErr    bool
-		wantOutput string
+		wantOutput any
 	}{
 		{
 			name:       "ReadTopLevelField",
 			fieldPath:  "app.lang",
 			wantErr:    false,
-			wantOutput: "go\n",
+			wantOutput: "go",
 		},
 		{
 			name:       "ReadMapField",
 			fieldPath:  "app.options",
 			wantErr:    false,
-			wantOutput: "option1: value1\n",
+			wantOutput: map[string]any{"option1": "value1"},
 		},
 		{
 			name:      "InvalidFieldPath",
@@ -74,16 +74,15 @@ func TestReadField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var buf bytes.Buffer
-			err := conf.ReadField(tt.fieldPath, &buf)
+			value, err := conf.ReadField(tt.fieldPath)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReadField() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			if !tt.wantErr && buf.String() != tt.wantOutput {
-				t.Errorf("ReadField() got output = %v, want %v", buf.String(), tt.wantOutput)
+			if !tt.wantErr && !reflect.DeepEqual(value, tt.wantOutput) {
+				t.Errorf("ReadField() got output = %v, want %v", value, tt.wantOutput)
 			}
 		})
 	}
@@ -212,73 +211,6 @@ func TestComputeDelta(t *testing.T) {
 	}
 }
 
-func TestRetrieveField(t *testing.T) {
-	testObj := TestStruct{
-		SimpleField: "Value",
-		NestedField: InnerStruct{FieldA: "NestedValue"},
-		MapField:    map[string]string{"key": "mapValue"},
-	}
-
-	tests := []struct {
-		name        string
-		v           reflect.Value
-		fieldPath   string
-		addressable bool
-		wantErr     bool
-		wantValue   interface{}
-	}{
-		{
-			name:        "TopLevelField",
-			v:           reflect.ValueOf(&testObj),
-			fieldPath:   "simpleField",
-			addressable: false,
-			wantErr:     false,
-			wantValue:   "Value",
-		},
-		{
-			name:        "NestedField",
-			v:           reflect.ValueOf(&testObj),
-			fieldPath:   "nestedField.fieldA",
-			addressable: false,
-			wantErr:     false,
-			wantValue:   "NestedValue",
-		},
-		{
-			name:        "MapField",
-			v:           reflect.ValueOf(&testObj),
-			fieldPath:   "mapField",
-			addressable: true,
-			wantErr:     false,
-			wantValue:   testObj.MapField,
-		},
-		{
-			name:        "InvalidField",
-			v:           reflect.ValueOf(&testObj),
-			fieldPath:   "NonExistentField",
-			addressable: false,
-			wantErr:     true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			gotField, _, err := retrieveField(tt.v, tt.fieldPath, tt.addressable)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("retrieveField() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !tt.wantErr {
-				if gotField.Kind() == reflect.Ptr {
-					gotField = gotField.Elem()
-				}
-				if !reflect.DeepEqual(gotField.Interface(), tt.wantValue) {
-					t.Errorf("retrieveField() got = %v, want %v", gotField.Interface(), tt.wantValue)
-				}
-			}
-		})
-	}
-}
-
 func TestFieldByEncodingName(t *testing.T) {
 	testStruct := TestStructWithTags{
 		FieldWithYamlTag:    "value1",
@@ -323,7 +255,7 @@ func TestFieldByEncodingName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotField := fieldByEncodingName(tt.v, tt.yamlName, "yaml")
+			gotField := fieldByEncodingName(tt.v, tt.yamlName)
 			if gotField.IsValid() != tt.wantFound {
 				t.Errorf("fieldByEncodingName() for %v, found = %v, want %v", tt.yamlName, gotField.IsValid(), tt.wantFound)
 			} else if tt.wantFound && gotField.String() != tt.wantValue {
@@ -333,45 +265,113 @@ func TestFieldByEncodingName(t *testing.T) {
 	}
 }
 
-func TestSetKeyValuePair(t *testing.T) {
-	testCases := []struct {
-		name      string
-		initMap   map[string]any
-		fieldPath string
-		value     any
-		want      map[string]any
-	}{
-		{
-			name:      "SetTopLevelKey",
-			initMap:   map[string]any{},
-			fieldPath: "key1",
-			value:     "value1",
-			want:      map[string]any{"key1": "value1"},
-		},
-		{
-			name:      "SetNestedKey",
-			initMap:   map[string]any{},
-			fieldPath: "nested.key2",
-			value:     "value2",
-			want:      map[string]any{"nested": map[string]any{"key2": "value2"}},
-		},
-		{
-			name:      "OverwriteExistingValue",
-			initMap:   map[string]any{"key1": "oldValue"},
-			fieldPath: "key1",
-			value:     "newValue",
-			want:      map[string]any{"key1": "newValue"},
-		},
+func TestWriteField(t *testing.T) {
+	// Mock Settings object
+	newConf := func() *Settings {
+		return &Settings{
+			App: AppSettings{
+				Lang:        "go",
+				Title:       "My App",
+				Name:        "my_app",
+				Author:      "Jane Doe",
+				Description: "A sample app",
+				Version:     "1.0.0",
+				FQDN:        "domain.example.com",
+				DUID:        "50e02eca-5e37-5365-8d95-9ec69e2512f7",
+				Options: map[string]any{
+					"option1": "value1",
+				},
+			},
+			Publish: map[string]PublishTarget{
+				"local": {
+					Endpoint: Endpoint{
+						Addr: "http://0.0.0.0:8080",
+					},
+				},
+			},
+		}
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			err := setKeyValuePair(tc.initMap, tc.fieldPath, tc.value)
-			if err != nil {
-				t.Errorf("setKeyValuePair() error = %v", err)
+	tests := []struct {
+		name      string
+		fieldPath string
+		wantErr   bool
+		value     string
+		expected  string
+		append    bool
+		actual    func(c *Settings) any
+	}{
+		{
+			name:      "TestWritePlainStructField",
+			fieldPath: "app.lang",
+			value:     "python",
+			actual:    func(c *Settings) any { return c.App.Lang },
+		},
+		{
+			name:      "TestWritePlainMapField",
+			fieldPath: "publish.local.addr",
+			value:     "172.17.0.1:9000",
+			actual:    func(c *Settings) any { return c.Publish["local"].Addr },
+		},
+		{
+			name:      "TestWriteWrongStructField",
+			fieldPath: "app.foo",
+			value:     "",
+			wantErr:   true,
+		},
+		{
+			name:      "TestWriteWrongMapField",
+			fieldPath: "app.env.foo",
+			value:     "",
+			wantErr:   true,
+		},
+		{
+			name:      "TestWriteComplexStructField",
+			fieldPath: "app.options",
+			value:     "{foo: {bar: zed}}",
+			actual:    func(c *Settings) any { return c.App.Options },
+		},
+		{
+			name:      "TestAppendSliceField",
+			fieldPath: "app.dependencies.compile",
+			value:     "foobar",
+			append:    true,
+			actual:    func(c *Settings) any { return c.App.Dependencies.Compile[len(c.App.Dependencies.Compile)-1] },
+		},
+		{
+			name:      "TestAppendMapField",
+			fieldPath: "app.env",
+			value:     "{foobar: zed}",
+			expected:  "zed",
+			append:    true,
+			actual:    func(c *Settings) any { return c.App.Env["foobar"] },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := newConf()
+			err := conf.WriteField(tt.fieldPath, tt.value, tt.append)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("%s failed with error: %s", tt.name, err.Error())
+				return
 			}
-			if !reflect.DeepEqual(tc.initMap, tc.want) {
-				t.Errorf("setKeyValuePair() got = %v, want %v", tc.initMap, tc.want)
+
+			if !tt.wantErr {
+				actualVal, _ := yaml.Marshal(tt.actual(conf))
+
+				// unmarshal/marshal value to avoid formatting differences
+				var vn any
+				if len(tt.expected) == 0 {
+					yaml.Unmarshal([]byte(tt.value), &vn)
+				} else {
+					yaml.Unmarshal([]byte(tt.expected), &vn)
+				}
+				expectedVal, _ := yaml.Marshal(vn)
+
+				if !bytes.Equal(actualVal, expectedVal) {
+					t.Errorf("%s fail with wrong output\n\tactual: '%s'\n\texpected: '%s'", tt.name, actualVal, expectedVal)
+				}
 			}
 		})
 	}
