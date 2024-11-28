@@ -1,6 +1,9 @@
 {
   "name": "corteca-toolchain-armv8",
-  "image": "ghcr.io/nokia/corteca-toolchain-armv8:23.12.1",
+  "image": "{{ .build.toolchains.image }}",
+  "runArgs": [
+    "--platform=linux/arm64"
+  ],
   "mounts": [
     {
       "source": "${localWorkspaceFolder}",

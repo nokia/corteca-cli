@@ -7,8 +7,10 @@ package configuration
 import (
 	"bytes"
 	"reflect"
+	"sort"
 	"testing"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
 
@@ -236,7 +238,8 @@ func TestFieldByEncodingName(t *testing.T) {
 			name:      "FieldWithoutYamlTag",
 			v:         reflect.ValueOf(testStruct),
 			yamlName:  "FieldWithoutYamlTag",
-			wantFound: false,
+			wantFound: true,
+			wantValue: "value2",
 		},
 		{
 			name:      "FieldWithOmitempty",
@@ -372,6 +375,119 @@ func TestWriteField(t *testing.T) {
 				if !bytes.Equal(actualVal, expectedVal) {
 					t.Errorf("%s fail with wrong output\n\tactual: '%s'\n\texpected: '%s'", tt.name, actualVal, expectedVal)
 				}
+			}
+		})
+	}
+}
+
+func TestGetSuggestions(t *testing.T) {
+	testCases := []struct {
+		name        string
+		path        string
+		suggestions []string
+	}{
+		{
+			path:        "app.version.",
+			suggestions: nil,
+		},
+		{
+			path:        "app.version",
+			suggestions: []string{"app.version"},
+		},
+		{
+			path: "build.",
+			suggestions: []string{
+				"build.crossCompile",
+				"build.default",
+				"build.dockerFileTemplate",
+				"build.options",
+				"build.toolchains",
+			},
+		},
+		{
+			path: "build.d",
+			suggestions: []string{
+				"build.default",
+				"build.dockerFileTemplate",
+			},
+		},
+		{
+			path: "app.dependencies.compile.",
+			suggestions: []string{
+				"app.dependencies.compile.0",
+				"app.dependencies.compile.1",
+				"app.dependencies.compile.2",
+			},
+		},
+		{
+			path: "app.env.",
+			suggestions: []string{
+				"app.env.baz",
+				"app.env.foo",
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := NewConfiguration()
+			config.App.Dependencies.Compile = append(config.App.Dependencies.Compile, "foo", "bar", "baz")
+			config.App.Env = map[string]string{
+				"foo": "bar",
+				"baz": "zed",
+			}
+			suggestions := config.GetSuggestions(tc.path)
+			if !reflect.DeepEqual(suggestions, tc.suggestions) {
+				t.Errorf("%s: failed with path '%s'.\n\texpected: %v\n\tactual: %v\n", t.Name(), tc.path, tc.suggestions, suggestions)
+			}
+		})
+	}
+}
+
+func TestGetFileList(t *testing.T) {
+	fs := afero.NewMemMapFs()
+
+	// Mock file structure
+	afero.WriteFile(fs, "/project/file1.txt", []byte("file1"), 0644)
+	afero.WriteFile(fs, "/project/file2.txt", []byte("file2"), 0644)
+	fs.MkdirAll("/project/subdir", 0755)
+	afero.WriteFile(fs, "/project/subdir/file3.txt", []byte("file3"), 0644)
+	fs.MkdirAll("/empty", 0755)
+	testCases := []struct {
+		name       string
+		rootFolder string
+		want       []string
+		wantErr    bool
+	}{
+		{
+			name:       "DirectoryWithFiles",
+			rootFolder: "/project",
+			want:       []string{"file1.txt", "file2.txt", "subdir/file3.txt"},
+			wantErr:    false,
+		},
+		{
+			name:       "EmptyDirectory",
+			rootFolder: "/empty",
+			want:       nil,
+			wantErr:    false,
+		},
+		{
+			name:       "NonExistentDirectory",
+			rootFolder: "/nonexistent",
+			want:       nil,
+			wantErr:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := getFileList(fs, tc.rootFolder)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("getFileList() error = %v, wantErr %v", err, tc.wantErr)
+				return
+			}
+			sort.Strings(got) // Sort the slices for consistent comparison
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("getFileList() got = %v, want %v", got, tc.want)
 			}
 		})
 	}

@@ -2,6 +2,8 @@ VERSION := $(shell git describe --tags)
 BUILD_FLAGS := -x -v -ldflags "-X corteca/cmd.appVersion=$(VERSION)"
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
+BUILD_ENV_GOOS ?= linux
+BUILD_ENV_GOARCH ?= amd64
 
 CURRDIR := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
 DIST := $(CURRDIR)dist
@@ -15,6 +17,9 @@ FULL_BINARY_NAME = $(BINARY_NAME)-$(GOOS)-$(GOARCH)-$(VERSION)
 $(BIN)/$(FULL_BINARY_NAME): $(TMP)
 	go env
 	CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) go build $(BUILD_FLAGS) -o $(BIN)/$(FULL_BINARY_NAME) main.go
+
+default-corteca-binary:
+	CGO_ENABLED=0 GOOS=$(BUILD_ENV_GOOS) GOARCH=$(BUILD_ENV_GOARCH) go build $(BUILD_FLAGS) -o $(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) main.go
 
 $(TMP):
 	mkdir -p $(TMP)
@@ -30,11 +35,23 @@ clean:
 distclean: clean
 	rm -rfv $(DIST)
 
-$(GOOS)-target: $(BIN)/$(FULL_BINARY_NAME)
-	mkdir -p $(DESTDIR)/opt/corteca $(DESTDIR)/etc/corteca $(DESTDIR)/usr/bin
+$(GOOS)-target: $(BIN)/$(FULL_BINARY_NAME) 
+	mkdir -p $(DESTDIR)/opt/corteca $(DESTDIR)/etc/corteca $(DESTDIR)/usr/bin 
 	cp -v $(BIN)/$(FULL_BINARY_NAME) $(DESTDIR)/opt/corteca/$(BINARY_NAME)
 	ln -sf /opt/corteca/$(BINARY_NAME) $(DESTDIR)/usr/bin/
 	cp -rv data/* $(DESTDIR)/etc/corteca/
+
+unix-completions: default-corteca-binary
+	mkdir -p $(BASH_COMPLETION_DIR) $(ZSH_COMPLETION_DIR) $(FISH_COMPLETION_DIR)
+	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion bash > $(BASH_COMPLETION_DIR)/$(BINARY_NAME).bash ; \
+	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion zsh >  $(ZSH_COMPLETION_DIR)/_$(BINARY_NAME); \
+	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion fish > $(FISH_COMPLETION_DIR)/$(BINARY_NAME).fish; \
+
+
+windows-completions: default-corteca-binary
+	mkdir -p $(PS1_COMPLETION_DIR)
+	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion powershell > $(PS1_COMPLETION_DIR)/$(BINARY_NAME).ps1; \
+	
 
 install: $(GOOS)-target
 
@@ -42,14 +59,21 @@ uninstall:
 	@if [ -e $(DESTDIR)/usr/bin/$(BINARY_NAME) ]; then unlink $(DESTDIR)/usr/bin/$(BINARY_NAME) && echo "removed '$(DESTDIR)/usr/bin/$(BINARY_NAME)' symlink"; fi
 	@if [ -e $(DESTDIR)/opt/corteca/$(BINARY_NAME) ]; then rm -v $(DESTDIR)/opt/corteca/$(BINARY_NAME) && rmdir -v $(DESTDIR)/opt/corteca; fi
 	rm -rfv $(DESTDIR)/etc/corteca
+	rm -fv $(BASH_COMPLETION_DIR)/$(BINARY_NAME).bash
+	rm -fv $(ZSH_COMPLETION_DIR)/_$(BINARY_NAME)
+	rm -fv $(FISH_COMPLETION_DIR)/$(BINARY_NAME).fish
 
 $(PACKAGES):
 	mkdir -p $(PACKAGES)
 
 deb: GOOS := linux
 deb: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
+deb: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
+deb: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
+deb: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
 deb: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).deb
 deb: $(GOOS)-target | $(PACKAGES)
+deb: unix-completions
 	fpm -f -s dir \
 		-t deb \
 		-C "$(DESTDIR)" \
@@ -66,8 +90,12 @@ deb: $(GOOS)-target | $(PACKAGES)
 
 rpm: GOOS := linux
 rpm: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
+rpm: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
+rpm: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
+rpm: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
 rpm: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).rpm
 rpm: $(GOOS)-target | $(PACKAGES)
+rpm: unix-completions
 	fpm -f -s dir \
 		-t rpm \
 		-C "$(DESTDIR)" \
@@ -82,8 +110,12 @@ rpm: $(GOOS)-target | $(PACKAGES)
 
 osx: GOOS := darwin
 osx: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
+osx: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
+osx: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
+osx: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
 osx: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).osxpkg
 osx: $(GOOS)-target | $(PACKAGES)
+osx: unix-completions
 	(cd $(TMP) && zip -r $(PACKAGES)/$(BINARY_NAME)_$(VERSION)_$(GOARCH).zip "$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)")
 # 	mkdir -p $(PACKAGES)
 #	@echo This can only run on OSX
@@ -105,17 +137,21 @@ msi: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).msi
 msi: GUID := $(shell uuidgen)
 msi: INSTALLER_XML := corteca.wxs
 msi: DEST_REL_PATH := $(shell realpath --relative-to=$(CURRDIR) $(DESTDIR))
+msi: PS1_COMPLETION_DIR := ${DESTDIR}/completions
 msi: $(GOOS)-target | $(PACKAGES)
+msi: windows-completions
 	mv $(DESTDIR)/opt/corteca/$(BINARY_NAME) $(DESTDIR)/opt/corteca/$(BINARY_NAME).exe
 
 	@echo Generating XML files for corteca components...
 	find $(DESTDIR)/opt/corteca | wixl-heat -p $(DESTDIR)/opt/corteca/ --component-group CortecaExeComponentGroup --var var.SourceDir \
 	--directory-ref=INSTALLFOLDER > $(DESTDIR)/exec.wxs
+	find $(PS1_COMPLETION_DIR) | wixl-heat -p $(PS1_COMPLETION_DIR)/ --component-group CortecaPSCompletionComponentGroup --var var.SourceModuleDir \
+	--directory-ref=PSMODULECOMPLETIONS > $(DESTDIR)/autocomplete.wxs
 	find $(DESTDIR)/etc/corteca | wixl-heat -p $(DESTDIR)/etc/corteca/ --component-group CortecaConfigComponentGroup --var var.SourceConfigDir \
 	--directory-ref=PROGRAMDATADIR > $(DESTDIR)/config.wxs
 
 	@echo Building MSI...
-	wixl -v -o $(PACKAGES)/$(PKGNAME) $(INSTALLER_XML) $(DESTDIR)/exec.wxs $(DESTDIR)/config.wxs -D SourceDir="$(DEST_REL_PATH)/opt/corteca" -D SourceConfigDir="$(DEST_REL_PATH)/etc/corteca" -D Guid="$(GUID)" -D Version="$(VERSION)" --arch x64
+	wixl -v -o $(PACKAGES)/$(PKGNAME) $(INSTALLER_XML) $(DESTDIR)/exec.wxs $(DESTDIR)/config.wxs $(DESTDIR)/autocomplete.wxs -D SourceDir="$(DEST_REL_PATH)/opt/corteca" -D SourceModuleDir="$(DEST_REL_PATH)/completions" -D SourceConfigDir="$(DEST_REL_PATH)/etc/corteca" -D Guid="$(GUID)" -D Version="$(VERSION)" --arch x64
 
 all-packages: msi deb rpm osx
 

@@ -6,8 +6,6 @@ package device
 
 import (
 	"bytes"
-	"corteca/internal/configuration"
-	"corteca/internal/templating"
 	"corteca/internal/tui"
 	"fmt"
 	"io"
@@ -18,6 +16,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 )
+
+const DEACTIVATE_QUAGGA_CMD = "sed -i 's#/usr/bin/vtysh#/bin/ash#' /etc/passwd"
 
 const (
 	MaxNumRetries  = 3
@@ -31,6 +31,11 @@ const (
 	CONNECTION_FIFO
 )
 
+const (
+	authSshPasswordName  = "password"
+	authSshPublicKeyName = "publicKey"
+)
+
 type Connection struct {
 	// Deliberately hidden from the user
 	handler   any
@@ -40,19 +45,20 @@ type Connection struct {
 	Address   string
 }
 
-func Connect(device *configuration.Endpoint, logFile string) (*Connection, error) {
+func Connect(addr, authType, privateKeyFile, password2, logFile string) (*Connection, error) {
 	var (
 		conn *Connection
 		err  error
 	)
-	u, err := url.Parse(device.Addr)
+	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, err
 	}
+	authType = strings.ToLower(authType)
 	protocol := strings.ToLower(u.Scheme)
 	switch protocol {
 	case "ssh":
-		conn, err = connectSSH(u, device)
+		conn, err = connectSSH(u, authType, password2, privateKeyFile)
 	case "telnet":
 		return nil, fmt.Errorf("telnet not supported yet; to be supported soon")
 	case "telnets":
@@ -69,7 +75,7 @@ func Connect(device *configuration.Endpoint, logFile string) (*Connection, error
 	return conn, err
 }
 
-func connectSSH(u *url.URL, device *configuration.Endpoint) (*Connection, error) {
+func connectSSH(u *url.URL, authType, password2, keyFile string) (*Connection, error) {
 	sshConfig := ssh.ClientConfig{
 		User:            u.User.Username(),
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: remove and either use $HOME/.ssh/known_hosts or prompt each time
@@ -83,11 +89,14 @@ func connectSSH(u *url.URL, device *configuration.Endpoint) (*Connection, error)
 	if password, passwordSet := u.User.Password(); passwordSet {
 		sshConfig.Auth = []ssh.AuthMethod{ssh.Password(password)}
 	} else {
-		switch device.Auth {
-		case configuration.AUTH_SSH_PASSWORD:
-			sshConfig.Auth = []ssh.AuthMethod{ssh.RetryableAuthMethod(ssh.KeyboardInteractive(keyboardChallenge), MaxNumRetries)}
-		case configuration.AUTH_SSH_PUBLIC_KEY:
-			keyFile := device.PrivateKeyFile
+		switch authType {
+		case authSshPasswordName:
+			password, err := tui.PromptForPassword(fmt.Sprintf("%s@%s's password", u.User, u.Host))
+			if err != nil {
+				return nil, err
+			}
+			sshConfig.Auth = []ssh.AuthMethod{ssh.Password(password)}
+		case authSshPublicKeyName:
 			if keyFile == "" {
 				return nil, fmt.Errorf("cannot use ssh public key auth method without a key file")
 			}
@@ -109,6 +118,24 @@ func connectSSH(u *url.URL, device *configuration.Endpoint) (*Connection, error)
 		return nil, err
 	}
 
+	isQuaggaActive, err := hasQuagga(client)
+	if err != nil {
+		return nil, err
+	}
+
+	if isQuaggaActive {
+		if err := deactivateQuagga(client, password2); err != nil {
+			return nil, err
+		}
+
+		client.Close()
+
+		client, err = ssh.Dial("tcp", u.Host, &sshConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &Connection{
 		handler:   client,
 		errorChan: nil,
@@ -117,16 +144,93 @@ func connectSSH(u *url.URL, device *configuration.Endpoint) (*Connection, error)
 	}, nil
 }
 
-func (c *Connection) SetLogFile(filename string) error {
-	f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+func hasQuagga(client *ssh.Client) (bool, error) {
+	session, err := client.NewSession()
 	if err != nil {
-		c.Close()
+		return false, err
+	}
+	defer session.Close()
+
+	var stdOut bytes.Buffer
+	session.Stdout = &stdOut
+	err = session.Run("ps | grep ash")
+
+	if err != nil {
+		return true, nil
+	} else if strings.Contains(stdOut.String(), "ash") {
+		return false, nil
+	}
+
+	return false, nil
+}
+
+func deactivateQuagga(client *ssh.Client, password2 string) error {
+	var err error
+
+	if password2 == "" {
+		password2, err = tui.PromptForPassword("Enter Password2")
+		if err != nil {
+			return err
+		}
+	}
+
+	session, err := client.NewSession()
+	if err != nil {
 		return err
 	}
-	f.WriteString(fmt.Sprintf("\n=== New connection to %v on %v ===\n", c.Address, time.Now().Format(time.DateTime)))
+	defer session.Close()
+
+	if err = session.RequestPty("xterm", 80, 40, ssh.TerminalModes{}); err != nil {
+		return err
+	}
+
+	stdInPipe, err := session.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	if err = session.Shell(); err != nil {
+		return err
+	}
+
+	commands := []string{
+		"shell",
+		password2,
+		DEACTIVATE_QUAGGA_CMD,
+	}
+
+	for _, cmd := range commands {
+		_, err := stdInPipe.Write([]byte(cmd + "\n"))
+
+		if err != nil {
+			return fmt.Errorf("error while deactivate Quagga: %v", err)
+		}
+
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil
+}
+
+func (c *Connection) SetLogFile(filename string) error {
+	var output *os.File
+	var err error
+	switch filename {
+	case "stdout":
+		output = os.Stdout
+	case "stderr":
+		output = os.Stderr
+	default:
+		output, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
+		if err != nil {
+			c.Close()
+			return err
+		}
+	}
+	output.WriteString(fmt.Sprintf("\n=== New connection to %s on %s ===\n", c.Address, time.Now().Format(time.DateTime)))
 	switch c.Type {
 	case CONNECTION_SSH:
-		c.logFile = f
+		c.logFile = output
 	}
 	return nil
 }
@@ -163,60 +267,6 @@ func (c *Connection) SendCmd(cmd string) (string, string, error) {
 	default:
 		return "", "", fmt.Errorf("unsupported connection type (%v)", c.Type)
 	}
-}
-
-func (c *Connection) ExecuteSequence(title string, sequence []configuration.SequenceCmd, context any) error {
-	for idx, cmd := range sequence {
-		fmt.Printf("Executing %v sequence step %v/%v...\n", title, idx+1, len(sequence))
-		attempts := cmd.Retries + 1
-		for {
-			err := c.ExecuteCommand(cmd, context)
-			attempts--
-			if err != nil {
-				if attempts == 0 {
-					return err
-				} else {
-					fmt.Printf("Command failed (%v); will retry %v more time(s).\n", err.Error(), attempts)
-				}
-			}
-			if cmd.Delay > 0 {
-				fmt.Printf("=> Waiting for %v millisecond(s)...\n", cmd.Delay)
-				time.Sleep(time.Duration(cmd.Delay) * time.Millisecond)
-			}
-			if err == nil {
-				break
-			}
-		}
-	}
-	return nil
-}
-
-func (c *Connection) ExecuteCommand(cmd configuration.SequenceCmd, context any) error {
-	if cmd.Cmd != "" {
-		cmdStr, err := templating.RenderTemplateString(cmd.Cmd, context)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("=> Send cmd: '%v'...\n", cmdStr)
-
-		output, _, err := c.SendCmd(cmdStr)
-		if err != nil {
-			return err
-		}
-		// if specified expected output, validate against actual
-		if cmd.Output != "" {
-			outputStr, err := templating.RenderTemplateString(cmd.Output, context)
-			if err != nil {
-				return err
-			}
-			if outputStr != output {
-				return fmt.Errorf("cmd '%v' validation failed; expected output '%v', actual '%v'", cmdStr, outputStr, output)
-			} else {
-				fmt.Printf("=> Cmd output validated: %v\n", outputStr)
-			}
-		}
-	}
-	return nil
 }
 
 func (c *Connection) Close() error {
@@ -261,4 +311,20 @@ func DiscoverTargetCPUarch(c Connection) (string, error) {
 		return "", err
 	}
 	return cpuArch, nil
+}
+
+const lcmList = "lcm list"
+const grepPluginMgr = "pgrep PluginMgr"
+
+func ContainerFrameworkType(connectionToDevice Connection) string {
+
+	_, _, err := connectionToDevice.SendCmd(lcmList)
+	if err == nil {
+		return "oci"
+	}
+	_, _, err = connectionToDevice.SendCmd(grepPluginMgr)
+	if err == nil {
+		return "rootfs"
+	}
+	return ""
 }

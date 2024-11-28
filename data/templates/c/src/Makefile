@@ -5,7 +5,7 @@ BIN_PATH      = $(BUILD_PATH)/bin
 PATHS         = $(BIN_PATH)
 INCLUDE_DIR   = $(SYSROOT)usr/include
 LIBRARIES_DIR = $(SYSROOT)usr/lib
-LDFLAGS       = -L$(LIBRARIES_DIR) ${LIBRARIES}
+LDFLAGS       = -L$(LIBRARIES_DIR)
 CFLAGS        = -I$(INCLUDE_DIR)
 
 

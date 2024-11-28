@@ -6,8 +6,6 @@ package templating
 
 import (
 	"path/filepath"
-	"reflect"
-	"sort"
 	"testing"
 
 	"github.com/spf13/afero"
@@ -155,56 +153,6 @@ func TestRenderTemplateString(t *testing.T) {
 			}
 			if got != tc.want {
 				t.Errorf("%v: received %q\nexpected %q", t.Name(), got, tc.want)
-			}
-		})
-	}
-}
-
-func TestGetFileList(t *testing.T) {
-	fs := afero.NewMemMapFs()
-
-	// Mock file structure
-	afero.WriteFile(fs, "/project/file1.txt", []byte("file1"), 0644)
-	afero.WriteFile(fs, "/project/file2.txt", []byte("file2"), 0644)
-	fs.MkdirAll("/project/subdir", 0755)
-	afero.WriteFile(fs, "/project/subdir/file3.txt", []byte("file3"), 0644)
-	fs.MkdirAll("/empty", 0755)
-	testCases := []struct {
-		name       string
-		rootFolder string
-		want       []string
-		wantErr    bool
-	}{
-		{
-			name:       "DirectoryWithFiles",
-			rootFolder: "/project",
-			want:       []string{"file1.txt", "file2.txt", "subdir/file3.txt"},
-			wantErr:    false,
-		},
-		{
-			name:       "EmptyDirectory",
-			rootFolder: "/empty",
-			want:       nil,
-			wantErr:    false,
-		},
-		{
-			name:       "NonExistentDirectory",
-			rootFolder: "/nonexistent",
-			want:       nil,
-			wantErr:    true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := getFileList(fs, tc.rootFolder)
-			if (err != nil) != tc.wantErr {
-				t.Errorf("getFileList() error = %v, wantErr %v", err, tc.wantErr)
-				return
-			}
-			sort.Strings(got) // Sort the slices for consistent comparison
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("getFileList() got = %v, want %v", got, tc.want)
 			}
 		})
 	}

@@ -1,4 +1,5 @@
 .vscode/
 /build/
 /dist/
-.deploy.log
+ADF
+Dockerfile

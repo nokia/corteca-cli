@@ -7,9 +7,9 @@
     author: {{ .app.author }}
 */
 
-
 int main()
 {
+
     std::cout << "Hello World from " << "{{.app.title}}" << std::endl;
     for (;;) {
         std::this_thread::sleep_for(std::chrono::seconds(5));

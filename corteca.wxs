@@ -13,9 +13,16 @@
                 <!-- Directory for config and templates -->
 				<Directory Id="PROGRAMDATADIR" Name="Corteca"/>
             </Directory>
+            <Directory Id="PersonalFolder">
+                <!-- Directory for PowerShell completion scripts -->
+                <Directory Id="PSMODULEDIR" Name="PowerShell">
+                    <Directory Id="PSMODULECOMPLETIONS" Name="Modules"/>
+                </Directory>
+            </Directory>
         </Directory>
 
         <Feature Id="ProductFeature" Title="CortecaCLI" Level="1">
+            <ComponentGroupRef Id="CortecaPSCompletionComponentGroup" />
             <ComponentGroupRef Id="CortecaExeComponentGroup" />
             <ComponentGroupRef Id="CortecaConfigComponentGroup" />
         </Feature>

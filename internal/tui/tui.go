@@ -6,12 +6,66 @@ package tui
 
 import (
 	"errors"
+	"fmt"
+	"os"
 
 	"github.com/pterm/pterm"
 	"github.com/spf13/afero"
+	"golang.org/x/term"
 )
 
-var ErrInputCancelled = errors.New("input cancelled")
+const (
+	CsReset    = "\033[0m"
+	SBold      = "\033[1m"
+	SUnderline = "\033[4m"
+	SStrike    = "\033[9m"
+	SItalic    = "\033[3m"
+
+	CRed    = "\033[31m"
+	CGreen  = "\033[32m"
+	CYellow = "\033[33m"
+	CBlue   = "\033[34m"
+	CPurple = "\033[35m"
+	CCyan   = "\033[36m"
+	CWhite  = "\033[37m"
+)
+
+var (
+	ErrInputCancelled    = errors.New("input cancelled")
+	DisableColoredOutput bool
+)
+
+// If no-color flag is set or no terminal found then remove colored output
+func DefineOutputColor() {
+	if DisableColoredOutput || !(term.IsTerminal(int(os.Stdout.Fd())) || term.IsTerminal(int(os.Stderr.Fd()))) {
+		DisableColoredOutput = true
+		pterm.DisableColor()
+	}
+}
+
+func LogNormal(format string, args ...any) {
+	format += "\n"
+	fmt.Fprintf(os.Stdout, format, args...)
+}
+
+func LogError(format string, args ...any) {
+	SetOutputColor(CRed)
+	format += "\n"
+	fmt.Fprintf(os.Stderr, format, args...)
+	ResetOutputColor()
+}
+
+func SetOutputColor(colorSeq string) {
+	if !DisableColoredOutput {
+		fmt.Fprintf(os.Stderr, colorSeq)
+	}
+}
+
+func ResetOutputColor() {
+	if !DisableColoredOutput {
+		fmt.Fprintf(os.Stderr, CsReset)
+	}
+}
 
 func PromptForValue(label string, defaultValue string) (string, error) {
 	result, err := pterm.DefaultInteractiveTextInput.WithDefaultValue(defaultValue).Show(label)
@@ -83,9 +137,11 @@ func PromptForProgress(f afero.File, label string) (*ProgressBar, error) {
 }
 
 func DisplaySuccessMsg(msg string) {
-	pterm.Success.Println(msg)
+	SetOutputColor(CGreen)
+	LogNormal(msg)
+	ResetOutputColor()
 }
 
 func DisplayErrorMsg(msg string) {
-	pterm.Error.Println(msg)
+	LogError(msg)
 }

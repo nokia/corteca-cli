@@ -12,7 +12,7 @@
   "hostname": "{{.app.name}}",
   "config": {
     "Cmd": [
-      "/bin/{{.app.name}}"
+      "{{ .app.entrypoint }}"
     ]
   },
   "mounts": [

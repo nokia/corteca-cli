@@ -14,6 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	CONTENT = "some content"
+)
+
 type MockHTTPClient struct {
 	DoFunc func(req *http.Request) (*http.Response, error)
 }
@@ -35,7 +39,7 @@ func TestHttpPut(t *testing.T) {
 	}{
 		{
 			name:        "successful upload with token",
-			fileContent: "some content",
+			fileContent: CONTENT,
 			token:       "token",
 			urlScheme:   "http",
 			setupServer: func() *httptest.Server {
@@ -47,7 +51,7 @@ func TestHttpPut(t *testing.T) {
 		},
 		{
 			name:        "successful upload with basic auth",
-			fileContent: "some content",
+			fileContent: CONTENT,
 			token:       "",
 			urlScheme:   "http",
 			setupServer: func() *httptest.Server {
@@ -59,14 +63,14 @@ func TestHttpPut(t *testing.T) {
 		},
 		{
 			name:          "unsupported URL scheme",
-			fileContent:   "some content",
+			fileContent:   CONTENT,
 			token:         "token",
 			urlScheme:     "ftp",
 			expectedError: "unsupported format ftp",
 		},
 		{
 			name:        "HTTP request fails with unauthorized",
-			fileContent: "some content",
+			fileContent: CONTENT,
 			token:       "token",
 			urlScheme:   "http",
 			setupServer: func() *httptest.Server {
@@ -78,7 +82,7 @@ func TestHttpPut(t *testing.T) {
 		},
 		{
 			name:        "HTTP request fails with other error",
-			fileContent: "some content",
+			fileContent: CONTENT,
 			token:       "token",
 			urlScheme:   "http",
 			setupServer: func() *httptest.Server {

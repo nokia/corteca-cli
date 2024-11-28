@@ -3,4 +3,8 @@ description: "An application template for the Go language."
 dependencies:
   compile: [ go ]
   runtime: [ json-c ]
-options: []
+regenFiles:
+  .corteca/ADF.template: ADF
+  .corteca/Dockerfile.template: Dockerfile
+options:
+      

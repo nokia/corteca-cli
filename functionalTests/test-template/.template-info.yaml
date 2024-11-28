@@ -1,5 +1,7 @@
 name: "test"
 description: "A test template"
+regenFiles:
+  .corteca/test.template: test.template
 options:
     - name: test_flag
       description: test_flag

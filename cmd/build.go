@@ -15,10 +15,11 @@ import (
 )
 
 var buildCmd = &cobra.Command{
-	Use:   "build [TOOLCHAIN]",
-	Short: "Build application",
-	Long:  `Build the application using the appropriate build toolchain`,
-	Args:  cobra.MaximumNArgs(1),
+	Use:               "build [TOOLCHAIN]",
+	Short:             "Build application",
+	Long:              `Build the application using the appropriate build toolchain`,
+	Args:              cobra.MaximumNArgs(1),
+	ValidArgsFunction: validBuildArgsFunc,
 	Run: func(cmd *cobra.Command, args []string) {
 		toolchain := ""
 		if len(args) > 0 {
@@ -30,17 +31,21 @@ var buildCmd = &cobra.Command{
 }
 
 var (
-	buildAll bool
-    outputType string
+	buildAll   bool
+	outputType string
 )
 
 func init() {
 	buildCmd.PersistentFlags().BoolVar(&buildAll, "all", false, "Build for all platforms")
+	buildCmd.PersistentFlags().BoolVar(&noRegen, "no-regen", false, "Skip regeneration of templates")
 	rootCmd.AddCommand(buildCmd)
 }
 
 func doBuildApp(selectedName string) {
 	requireProjectContext()
+	if !noRegen {
+		doRegenTemplates(projectRoot)
+	}
 	selectedName = getToolchainName(selectedName)
 	outputType = strings.ToLower(config.Build.Options.OutputType)
 	cmdContext.Toolchain.Image = config.Build.Toolchains.Image
@@ -131,8 +136,7 @@ func handleBuildError(toolchainName string, err error) {
 }
 
 func doBuildTarget(architecture string, platform string, buildOptions configuration.BuildOptions) error {
-	builder.GenerateDockerfileFromTemplate(configuration.ToDictionary(cmdContext))
-	err := builder.BuildContainer(config.Build.Toolchains.Image, architecture, platform, projectRoot, config.App.Name, config.App.Version, buildOptions)
+	err := builder.BuildContainer(config.Build.Toolchains.Image, architecture, platform, projectRoot, config.App, buildOptions)
 
 	if err != nil {
 		return fmt.Errorf("invoking toolchain image '%v': %v", config.Build.Toolchains.Image, err)
@@ -146,4 +150,18 @@ func enableCrossCompilation(crossCompileSettings configuration.CrossCompileConfi
 		return fmt.Errorf("setting up QEMU for cross-compilation failed: %w", err)
 	}
 	return nil
+}
+
+func validBuildArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) == 0 {
+		architectures := make([]string, 0, len(config.Build.Toolchains.Architectures))
+		for k := range config.Build.Toolchains.Architectures {
+			if strings.HasPrefix(k, toComplete) {
+				architectures = append(architectures, k)
+			}
+		}
+		return architectures, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	return nil, cobra.ShellCompDirectiveNoFileComp
 }

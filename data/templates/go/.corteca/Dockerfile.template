@@ -1,0 +1,48 @@
+ARG MIRROR_REGISTRY=${MIRROR_REGISTRY}
+ARG DIST_USR=/dist/usr
+FROM {{ .build.toolchains.image }} AS toolchain
+{{- if .build.options.env }}
+ENV{{ range $key, $value := .build.options.env }} {{ $key }}={{ $value }} {{ end }}
+{{- end }}
+{{ if .build.options.debug }}ENV DEBUG_MODE=true{{end}}
+WORKDIR /app
+COPY . /app
+# Install compile dependencies
+RUN apk add --no-cache {{ range .app.dependencies.compile }}{{ . }} {{ end }}
+RUN make
+
+
+FROM ${MIRROR_REGISTRY}alpine:3.17.7 AS app_container
+ARG DIST_USR
+COPY --from=toolchain ${DIST_USR}/. /
+COPY --from=toolchain /app/target/noarch/. /
+COPY --from=toolchain /app/build/. /
+COPY --from=toolchain /app/target/. /target
+# Install runtime dependencies
+RUN apk add --no-cache {{ range .app.dependencies.runtime }}{{ . }} {{ end }}
+{{- if .build.options.debug }}gdb{{- end }} && \
+    cp -av /target/$(uname -m)/. / && \
+    apk list > /$(uname -m) && \
+    rm -fr /target /var/cache/apk/* /tmp/* /var/tmp/*
+{{ if not .build.options.debug }}
+# Cleanup
+RUN apk --purge del apk-tools alpine-keys && \
+    rm -rf /linuxrc /lib/apk/ /root /media #/var
+    # cd /bin && \
+    # rm -f arch ash base32 base64 busybox bbconfig cat chattr chgrp chmod chown \
+    #         cp cpio date dd df dmesg dnsdomainname dumpkmap echo ed egrep false \
+    #         fatattr fdflush fgrep fsync getopt grep gunzip gzip hostname ionice \
+    #         ipcalc iostat kbd_mode kill less link ln linux32 linux64 login ls \
+    #         lsattr lzop makemime mkdir mknod mktemp more mount mountpoint mpstat \
+    #         mv netstat nice pidof ping ping6 pipe_progress printenv ps pwd reformime \
+    #         rev rm rmdir run-parts sed setpriv setserial sleep stat stty su sh sync \
+    #         tar touch true umount uname usleep vi watch zcat
+{{ end }}
+
+
+FROM scratch AS final_stage
+{{- if .app.env }}
+ENV{{ range $key, $value := .app.env }} {{ $key }}={{ $value }} {{ end }}
+{{- end }}
+COPY --from=app_container / /
+ENTRYPOINT [ "{{ .app.entrypoint }}" ]

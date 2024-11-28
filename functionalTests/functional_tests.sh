@@ -26,6 +26,8 @@ test_user_config_get
 
 test_create_test_template_with_cmd
 
+test_regen
+
 if [[ ${ENV_OS} == debian:bookworm-slim || ${ENV_OS} == debian:jessie-slim ]]; then
     debian_uninstall
 elif [[ ${ENV_OS} == centos:8 ]]; then

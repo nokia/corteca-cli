@@ -5,15 +5,21 @@
 package publish
 
 import (
-	"corteca/internal/configuration"
 	"corteca/internal/tui"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/afero"
+)
+
+const (
+	authHttpBasicName  = "basic"
+	authHttpBearerName = "bearer"
+	authHttpDigestName = "digest"
 )
 
 func HttpPut(filePath string, url url.URL, token string) error {
@@ -74,18 +80,16 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	return nil
 }
 
-func AuthenticateHttp(target configuration.PublishTarget) (*url.URL, string, error) {
-	var token string
+func AuthenticateHttp(addr, authType, token string) (*url.URL, string, error) {
 
-	u, err := url.Parse(target.Addr)
+	u, err := url.Parse(addr)
 	if err != nil {
 		return nil, "", err
 	}
 
-	authType := target.Auth
-
+	authType = strings.ToLower(authType)
 	switch authType {
-	case configuration.AUTH_HTTP_BASIC:
+	case authHttpBasicName:
 
 		username := u.User.Username()
 		if username == "" {
@@ -105,11 +109,11 @@ func AuthenticateHttp(target configuration.PublishTarget) (*url.URL, string, err
 
 		u.User = url.UserPassword(username, password)
 
-	case configuration.AUTH_HTTP_BEARER:
-		if token = target.Token; token == "" {
+	case authHttpBearerName:
+		if token == "" {
 			return nil, "", errors.New("no bearer token present in configuration even though HTTP Bearer authentication has been requested")
 		}
-	case configuration.AUTH_HTTP_DIGEST:
+	case authHttpDigestName:
 		// TODO: implement
 		return nil, "", errors.New("digest HTTP authentication not implemented yet")
 	}

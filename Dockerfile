@@ -18,10 +18,18 @@ RUN apk update && apk add \
     git \
     && gem install fpm
 
+FROM builder-image AS go-test-coverage-stage
+WORKDIR /test-coverage
+COPY . .
+RUN go test ./... -coverprofile=go-coverage.out
+
+FROM scratch AS go-coverage-file
+COPY --from=go-test-coverage-stage /test-coverage/go-coverage.out /
+
 FROM builder-image AS ut-stage
 WORKDIR /ut
 COPY . .
-RUN go install github.com/jstemmer/go-junit-report/v2@latest
+RUN env; go env; go install github.com/jstemmer/go-junit-report/v2@latest
 RUN go test -v 2>&1 ./... | go-junit-report > ut-report.xml
 
 FROM scratch AS ut-artifacts

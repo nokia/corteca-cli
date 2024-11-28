@@ -1,0 +1,14 @@
+{
+  "name": "corteca-toolchain-amd64",
+  "image": "{{ .build.toolchains.image }}",
+  "runArgs": [
+    "--platform=linux/amd64"
+  ],
+  "mounts": [
+    {
+      "source": "${localWorkspaceFolder}",
+      "target": "/app",
+      "type": "bind"
+    }
+  ]
+}

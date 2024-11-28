@@ -10,15 +10,24 @@
 package configuration
 
 import (
+	specs "corteca/internal/configuration/runtimeSpec"
+	"corteca/internal/configuration/templating"
+	"corteca/internal/fsutil"
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"text/template"
+	"time"
 
+	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,10 +38,10 @@ const (
 )
 
 type BuildOptions struct {
-	OutputType 	 string              `yaml:"outputType"`
-	DebugMode      bool              `yaml:"debug"`
-	SkipHostEnv    bool              `yaml:"skipHostEnv,omitempty"`
-	Env            map[string]string `yaml:"env"`
+	OutputType  string            `yaml:"outputType"`
+	DebugMode   bool              `yaml:"debug"`
+	SkipHostEnv bool              `yaml:"skipHostEnv,omitempty"`
+	Env         map[string]string `yaml:"env"`
 }
 
 type AppSettings struct {
@@ -48,6 +57,7 @@ type AppSettings struct {
 	Dependencies Dependencies      `yaml:"dependencies"`
 	Env          map[string]string `yaml:"env"`
 	Entrypoint   string            `yaml:"entrypoint"`
+	Runtime      specs.Spec        `yaml:"runtime"`
 }
 
 type Dependencies struct {
@@ -89,34 +99,29 @@ const (
 	PUBLISH_METHOD_LISTEN
 	PUBLISH_METHOD_PUT
 	PUBLISH_METHOD_COPY
+	PUBLISH_METHOD_PUSH
+	PUBLISH_METHOD_REGISTRY
 )
 
 const (
-	publishMethodListenName = "listen"
-	publishMethodPutName    = "put"
-	publishMethodCopyName   = "copy"
-)
-
-const (
-	AUTH_UNDEFINED = iota
-	AUTH_HTTP_BASIC
-	AUTH_HTTP_BEARER
-	AUTH_HTTP_DIGEST
-	AUTH_SSH_PASSWORD
-	AUTH_SSH_PUBLIC_KEY
+	publishMethodListenName   = "listen"
+	publishMethodPutName      = "put"
+	publishMethodCopyName     = "copy"
+	publishMethodPushName     = "push"
+	publishMethodRegistryName = "registry-v2"
 )
 
 const (
 	ConfigFileName = "corteca.yaml"
 )
 
-const (
-	authHttpBasicName    = "basic"
-	authHttpBearerName   = "bearer"
-	authHttpDigestName   = "digest"
-	authSshPasswordName  = "password"
-	authSshPublicKeyName = "publicKey"
-)
+var cmdRegularExpression *regexp.Regexp
+var regexKeyValue *regexp.Regexp
+
+func init() {
+	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
+	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
+}
 
 func (m PublishMethod) MarshalYAML() (interface{}, error) {
 	var out []byte
@@ -129,33 +134,13 @@ func (m PublishMethod) MarshalYAML() (interface{}, error) {
 		out, err = yaml.Marshal(publishMethodPutName)
 	case PUBLISH_METHOD_COPY:
 		out, err = yaml.Marshal(publishMethodCopyName)
+	case PUBLISH_METHOD_PUSH:
+		out, err = yaml.Marshal(publishMethodPushName)
+	case PUBLISH_METHOD_REGISTRY:
+		out, err = yaml.Marshal(publishMethodRegistryName)
 	default:
 		out = nil
 		err = fmt.Errorf("invalid publish method (%v)", m)
-	}
-
-	return strings.TrimSpace(string(out)), err
-
-}
-
-func (a AuthType) MarshalYAML() (interface{}, error) {
-	var out []byte
-	var err error
-
-	switch a {
-	case AUTH_HTTP_BASIC:
-		out, err = yaml.Marshal(authHttpBasicName)
-	case AUTH_HTTP_BEARER:
-		out, err = yaml.Marshal(authHttpBearerName)
-	case AUTH_HTTP_DIGEST:
-		out, err = yaml.Marshal(authHttpDigestName)
-	case AUTH_SSH_PASSWORD:
-		out, err = yaml.Marshal(authSshPasswordName)
-	case AUTH_SSH_PUBLIC_KEY:
-		out, err = yaml.Marshal(authSshPublicKeyName)
-	default:
-		out = nil
-		err = fmt.Errorf("invalid authorization type (%v)", a)
 	}
 
 	return strings.TrimSpace(string(out)), err
@@ -175,52 +160,36 @@ func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
 		*m = PUBLISH_METHOD_PUT
 	case publishMethodCopyName:
 		*m = PUBLISH_METHOD_COPY
+	case publishMethodPushName:
+		*m = PUBLISH_METHOD_PUSH
+	case publishMethodRegistryName:
+		*m = PUBLISH_METHOD_REGISTRY
 	default:
 		return fmt.Errorf("unrecognized publish method '%v'", name)
 	}
 	return nil
 }
 
-func (a *AuthType) UnmarshalYAML(data *yaml.Node) error {
-	var name string
-	if err := yaml.Unmarshal([]byte(data.Value), &name); err != nil {
-		return err
-	}
-
-	switch name {
-	case authHttpBasicName:
-		*a = AUTH_HTTP_BASIC
-	case authHttpBearerName:
-		*a = AUTH_HTTP_BEARER
-	case authHttpDigestName:
-		*a = AUTH_HTTP_DIGEST
-	case authSshPasswordName:
-		*a = AUTH_SSH_PASSWORD
-	case authSshPublicKeyName:
-		*a = AUTH_SSH_PUBLIC_KEY
-	default:
-		return fmt.Errorf("unrecognized authorization type '%v'", name)
-	}
-	return nil
-}
-
 type Endpoint struct {
-	Addr           string   `yaml:"addr,omitempty"`
-	Auth           AuthType `yaml:"auth,omitempty"`
-	PrivateKeyFile string   `yaml:"privateKeyFile,omitempty"`
-	Token          string   `yaml:"token,omitempty"`
+	Addr           string `yaml:"addr,omitempty"`
+	Auth           string `yaml:"auth,omitempty"`
+	Password2      string `yaml:"password2,omitempty"`
+	PrivateKeyFile string `yaml:"privateKeyFile,omitempty"`
+	Token          string `yaml:"token,omitempty"`
 }
 
 type PublishTarget struct {
-	Endpoint `yaml:",omitempty,inline"`
-	Method   PublishMethod `yaml:"method,omitempty"`
+	Endpoint  `yaml:",omitempty,inline"`
+	Method    PublishMethod `yaml:"method,omitempty"`
+	PublicURL string        `yaml:"publicURL,omitempty"`
 }
 
 type SequenceCmd struct {
-	Cmd     string `yaml:"cmd,omitempty"`
-	Output  string `yaml:"expectedOutput,omitempty"`
-	Delay   uint   `yaml:"delay,omitempty"`
-	Retries uint   `yaml:"retries,omitempty"`
+	Cmd           string `yaml:"cmd,omitempty"`
+	Delay         uint   `yaml:"delay,omitempty"`
+	Retries       uint   `yaml:"retries,omitempty"`
+	Input         string `yaml:"input,omitempty"`
+	IgnoreFailure bool   `yaml:"ignoreFailure,omitempty"`
 }
 
 type DownloadSource struct {
@@ -230,20 +199,98 @@ type DownloadSource struct {
 
 type DeployDevice struct {
 	Endpoint `yaml:",omitempty,inline"`
-	Source   DownloadSource `yaml:"source,omitempty"`
 }
 
-type DeploySettings struct {
-	Sequence []SequenceCmd `yaml:"sequence,omitempty"`
-	LogFile  string        `yaml:"logFile,omitempty"`
-}
+type Sequence []SequenceCmd
+
+type DictType[T any] map[string]T
 
 type Settings struct {
-	App     AppSettings              `yaml:"app"`
-	Build   BuildSettings            `yaml:"build"`
-	Deploy  DeploySettings           `yaml:"deploy"`
-	Publish map[string]PublishTarget `yaml:"publish,omitempty"`
-	Devices map[string]DeployDevice  `yaml:"devices,omitempty"`
+	App       AppSettings             `yaml:"app"`
+	Build     BuildSettings           `yaml:"build"`
+	Publish   DictType[PublishTarget] `yaml:"publish,omitempty"`
+	Devices   DictType[DeployDevice]  `yaml:"devices,omitempty"`
+	Sequences map[string]Sequence     `yaml:"sequences,omitempty"`
+	Templates map[string]string       `yaml:"templates"`
+}
+
+// UnmarshalYAML for Publish and Devices
+func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
+	if data.Kind != yaml.MappingNode {
+		return errors.New("wrong value type")
+	}
+	if *t == nil {
+		*t = make(DictType[T])
+	}
+	for i := 0; i < len(data.Content); i += 2 {
+		var alias string
+		if err := data.Content[i].Decode(&alias); err != nil {
+			return err
+		}
+		settings := (*t)[alias]
+		if err := data.Content[i+1].Decode(&settings); err != nil {
+			return err
+		}
+
+		(*t)[alias] = settings
+	}
+	return nil
+}
+
+type ExecuteCmdFunc func(string) error
+
+func (c *Settings) ExecuteSequence(name string, context any, executeCmdFunc ExecuteCmdFunc) error {
+	sequence, found := c.Sequences[name]
+	if !found {
+		return fmt.Errorf("sequence %s not found", name)
+	}
+	for idx, cmd := range sequence {
+		fmt.Printf("Executing sequence '%s' step %d/%d...\n", name, idx+1, len(sequence))
+		attempts := cmd.Retries + 1
+		for {
+			err := executeCommand(cmd, c, context, executeCmdFunc)
+			attempts--
+			if !cmd.IgnoreFailure && err != nil {
+				if attempts == 0 {
+					return err
+				} else {
+					fmt.Printf("Command failed (%s); will retry %d more time(s).\n", err.Error(), attempts)
+				}
+			}
+			if cmd.Delay > 0 {
+				fmt.Printf("=> Waiting for %d millisecond(s)...\n", cmd.Delay)
+				time.Sleep(time.Duration(cmd.Delay) * time.Millisecond)
+			}
+			if err == nil {
+				break
+			}
+		}
+	}
+	return nil
+}
+
+func findRefToSequence(seqCmd string) (string, bool) {
+	if cmdRefRegex := cmdRegularExpression.FindStringSubmatch(seqCmd); len(cmdRefRegex) == 2 {
+		return cmdRefRegex[1], true
+	} else {
+		return "", false
+	}
+}
+
+func executeCommand(cmd SequenceCmd, c *Settings, context any, executeCmdFunc ExecuteCmdFunc) error {
+	if seqName, found := findRefToSequence(cmd.Cmd); found {
+		return c.ExecuteSequence(seqName, context, executeCmdFunc)
+	} else {
+		cmdStr, err := templating.RenderTemplateString(cmd.Cmd, context)
+		if err != nil {
+			if _, ok := err.(template.ExecError); ok {
+				return fmt.Errorf("error rendering cmd content: %s", err.Error())
+			}
+			return err
+		}
+		fmt.Printf("=> Send cmd: '%s'...\n", cmdStr)
+		return executeCmdFunc(cmdStr)
+	}
 }
 
 func NewConfiguration() Settings {
@@ -257,12 +304,12 @@ func NewConfiguration() Settings {
 				Architectures: make(ArchitecturesMap),
 			},
 		},
-		Deploy: DeploySettings{
-			Sequence: []SequenceCmd{},
-		},
-		Publish: map[string]PublishTarget{},
-		Devices: map[string]DeployDevice{},
+		Publish:   make(DictType[PublishTarget]),
+		Devices:   make(DictType[DeployDevice]),
+		Sequences: make(map[string]Sequence),
+		Templates: make(map[string]string),
 	}
+
 }
 
 func (conf *Settings) ReadFromFile(path string) error {
@@ -295,6 +342,86 @@ func (conf *Settings) WriteToFile(path string) error {
 	return out.Close()
 }
 
+const (
+	INVALID_FIELD = "invalid field '%s'"
+)
+
+func (conf *Settings) GetSuggestions(fieldpath string) []string {
+	keySequence := strings.Split(fieldpath, ".")
+	field := reflect.ValueOf(*conf)
+	// Preallocate slice with capacity 16 to minimize allocations for common cases
+	suggestions := make([]string, 0, 16)
+
+	for index, key := range keySequence {
+		// if field is a pointer, dereference
+		if field.Kind() == reflect.Ptr {
+			if field.IsNil() {
+				return nil
+			}
+			field = field.Elem()
+		}
+
+		if index == len(keySequence)-1 {
+			// break on last item
+			break
+		}
+
+		switch field.Kind() {
+		case reflect.Struct:
+			field = fieldByEncodingName(field, key)
+			if !field.IsValid() {
+				return nil
+			}
+		case reflect.Map:
+			field = field.MapIndex(reflect.ValueOf(key))
+			if !field.IsValid() {
+				return nil
+			}
+		case reflect.Array, reflect.Slice:
+			i, err := strconv.Atoi(key)
+			if err != nil || i < 0 || i >= field.Len() {
+				return nil
+			}
+			field = field.Index(i)
+		default:
+			return nil
+		}
+	}
+
+	prefix := keySequence[len(keySequence)-1]
+	path := strings.Join(keySequence[:len(keySequence)-1], ".")
+	if path != "" {
+		path += "."
+	}
+
+	switch field.Kind() {
+	case reflect.Struct:
+		suggestions = fieldNamesByEncodingPrefix(field, prefix, path)
+	case reflect.Map:
+		for _, f := range field.MapKeys() {
+			if strings.HasPrefix(f.String(), prefix) {
+				suggestions = append(suggestions, path+f.String())
+			}
+		}
+	case reflect.Array, reflect.Slice:
+		for f := 0; f < field.Len(); f++ {
+			num := fmt.Sprintf("%d", f)
+			if strings.HasPrefix(num, prefix) {
+				suggestions = append(suggestions, path+num)
+			}
+		}
+	default:
+		return nil
+	}
+
+	// sort suggestions alphabetically
+	slices.SortFunc(suggestions, func(a, b string) int {
+		return strings.Compare(strings.ToLower(a), strings.ToLower(b))
+	})
+
+	return suggestions
+}
+
 func (conf Settings) ReadField(fieldPath string) (any, error) {
 	keySequence := strings.Split(fieldPath, ".")
 	field := reflect.ValueOf(conf)
@@ -312,12 +439,12 @@ func (conf Settings) ReadField(fieldPath string) (any, error) {
 		case reflect.Struct:
 			field = fieldByEncodingName(field, key)
 			if !field.IsValid() {
-				return nil, fmt.Errorf("invalid field '%s'", key)
+				return nil, fmt.Errorf(INVALID_FIELD, key)
 			}
 		case reflect.Map:
 			field = field.MapIndex(reflect.ValueOf(key))
 			if !field.IsValid() {
-				return nil, fmt.Errorf("invalid field '%s'", key)
+				return nil, fmt.Errorf(INVALID_FIELD, key)
 			}
 		case reflect.Array, reflect.Slice:
 			i, err := strconv.Atoi(key)
@@ -361,14 +488,14 @@ func writeValueHelper(container reflect.Value, fieldPath string, value string, a
 		case reflect.Struct:
 			field := fieldByEncodingName(container, key)
 			if !field.IsValid() {
-				panic(fmt.Errorf("invalid field '%s'", key))
+				panic(fmt.Errorf(INVALID_FIELD, key))
 			}
 			field.Set(writeValueHelper(field, restpath, value, append))
 
 		case reflect.Map:
 			field := container.MapIndex(reflect.ValueOf(key))
 			if !field.IsValid() {
-				panic(fmt.Errorf("invalid field '%s'", key))
+				panic(fmt.Errorf(INVALID_FIELD, key))
 			}
 			// make a clone
 			newfield := reflect.New(field.Type())
@@ -401,12 +528,13 @@ func writeValueHelper(container reflect.Value, fieldPath string, value string, a
 				// if we attempt to append to anything other than a slice or a map, fail
 				panic(fmt.Errorf("cannot append value(s) to a '%s'", container.Kind().String()))
 			}
+
+			keyValuePair := regexKeyValue.FindStringSubmatch(value)
+			if len(keyValuePair) >= 2 {
+				value = fmt.Sprintf("{ %s: %s }", keyValuePair[1], keyValuePair[2])
+			}
 		}
 		v := reflect.New(newValtype)
-		// accept special format of KEY=VALUE (for shell convenience) and reformat it as yaml
-		if key, val, found := strings.Cut(value, "="); found {
-			value = fmt.Sprintf("{ %s: %s }", key, val)
-		}
 		// parse string as yaml inside the newly created value
 		if err := ReadYamlInto(v.Interface(), strings.NewReader(value)); err != nil {
 			panic(fmt.Errorf("'%s' is not a %s", value, container.Type().Kind().String()))
@@ -502,7 +630,115 @@ func (conf *Settings) WriteConfiguration(dir string, deltaBase *Settings) error 
 	return out.Close()
 }
 
+// get available templates
+const TemplateInfoFile string = ".template-info.yaml"
+
+type TemplateCustomOption struct {
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Type        string   `yaml:"type"`
+	Default     any      `yaml:"default"`
+	Values      []string `yaml:"values,omitempty"`
+}
+
+type TemplateInfo struct {
+	Name         string `yaml:"name"`
+	Description  string `yaml:"description"`
+	Dependencies struct {
+		Compile []string `yaml:"compile"`
+		Runtime []string `yaml:"runtime"`
+	} `yaml:"dependencies"`
+	Path       string            `yaml:"-"`
+	RegenFiles map[string]string `yaml:"regenFiles"`
+	Options    []TemplateCustomOption
+}
+
+const (
+	BoolOption   = "boolean"
+	TextOption   = "text"
+	ChoiceOption = "choice"
+)
+
+// return a map (template name) ->  TemplateInfo of available templates
+func GetAvailableTemplates(list map[string]TemplateInfo, templatesDir string) error {
+	// find all files in folder (recursively) that match the template info filename
+	err := fs.WalkDir(os.DirFS(templatesDir), ".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		filename := filepath.Base(path)
+		if filename == TemplateInfoFile {
+			fullPath := filepath.Join(templatesDir, path)
+			// index template name from parent folder name
+			info, err := readTemplateInfo(fullPath)
+			if err != nil {
+				return err
+			}
+			list[filepath.Base(info.Path)] = info
+		}
+		return nil
+	})
+	// consume error in case folder does not exist
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	return nil
+}
+
+func GenerateTemplate(fs afero.Fs, info TemplateInfo, destFolder string, context any) error {
+	fileList, err := getFileList(fs, info.Path)
+	if err != nil {
+		return err
+	}
+	for _, path := range fileList {
+		if filepath.Base(path) == TemplateInfoFile {
+			continue
+		} else if isRegenFile(path, info) {
+			if _, err = fsutil.CopyFile(filepath.Join(info.Path, path), filepath.Join(destFolder, path)); err != nil {
+				return err
+			}
+			continue
+		}
+		err := templating.RenderTemplateFile(fs, path, info.Path, destFolder, context)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // helpers
+func getFileList(fs afero.Fs, rootFolder string) ([]string, error) {
+	var fileList []string
+	err := afero.Walk(afero.NewBasePathFs(fs, rootFolder), ".", func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			fileList = append(fileList, path)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return fileList, nil
+}
+
+func readTemplateInfo(fullPath string) (info TemplateInfo, err error) {
+	yamlData, err := os.Open(fullPath)
+	if err != nil {
+		return TemplateInfo{}, err
+	}
+	defer yamlData.Close()
+
+	if err = ReadYamlInto(&info, yamlData); err != nil {
+		return
+	}
+	// TODO: validate template info
+	info.Path = filepath.Dir(fullPath)
+	return
+}
 
 func computeDelta(prev, curr map[string]any) map[string]any {
 	delta := map[string]any{}
@@ -511,7 +747,7 @@ func computeDelta(prev, curr map[string]any) map[string]any {
 		if found && reflect.DeepEqual(value, oldValue) {
 			// values are identical (unchanged)
 			continue
-		} else if found && reflect.TypeOf(value).Kind() == reflect.Map && reflect.TypeOf(oldValue).Kind() == reflect.Map {
+		} else if found && reflect.TypeOf(value) == reflect.TypeOf(oldValue) && reflect.TypeOf(value).Kind() == reflect.Map {
 			// value exists in both and it is a dictionary
 			delta[key] = computeDelta(oldValue.(map[string]any), value.(map[string]any))
 		} else {
@@ -524,32 +760,54 @@ func computeDelta(prev, curr map[string]any) map[string]any {
 
 // Find field by `encoding` tag name
 func fieldByEncodingName(v reflect.Value, name string) reflect.Value {
-	for i := 0; i < v.Type().NumField(); i++ {
-		tag := v.Type().Field(i).Tag
+	for _, field := range reflect.VisibleFields(v.Type()) {
+		encodingName := getFieldName(field)
 
-		if encodingTag, ok := tag.Lookup(ENCODING); ok {
-			// `encoding` tag (ex: json, yaml, xml) consists comma-separated values, where first one is always the encoding's name
-			encodingName := strings.Split(encodingTag, ",")[0]
-			// match encoding tag name, or field name if former is not present
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			continue
+		} else {
+			// match encoding tag name or field name if former is not present
 			if encodingName == name {
-				return v.Field(i)
+				return v.FieldByIndex(field.Index)
 			}
 		}
 	}
-	// field name not found, search anonymous (embedded) structs
-	for i := 0; i < v.Type().NumField(); i++ {
-		if v.Type().Field(i).Anonymous && v.Type().Field(i).Type.Kind() == reflect.Struct {
-			value := fieldByEncodingName(v.Field(i), name)
-			if value.IsValid() {
-				return value
-			}
-		}
-	}
+
 	return reflect.Value{}
+}
+
+func fieldNamesByEncodingPrefix(v reflect.Value, prefix, basePath string) []string {
+	var fieldNames []string
+
+	for _, field := range reflect.VisibleFields(v.Type()) {
+		name := getFieldName(field)
+
+		if field.Anonymous && field.Type.Kind() == reflect.Struct {
+			continue
+		} else {
+			if strings.HasPrefix(name, prefix) {
+				fieldNames = append(fieldNames, basePath+name)
+			}
+		}
+	}
+
+	return fieldNames
+}
+
+func getFieldName(field reflect.StructField) string {
+	if tag, ok := field.Tag.Lookup(ENCODING); ok {
+		return strings.Split(tag, ",")[0]
+	}
+	return field.Name
 }
 
 func ReadYamlInto(value interface{}, in io.Reader) error {
 	dec := yaml.NewDecoder(in)
 	dec.KnownFields(STRICT_DECODING_OPT)
 	return dec.Decode(value)
+}
+
+func isRegenFile(path string, info TemplateInfo) bool {
+	_, exists := info.RegenFiles[path]
+	return exists
 }

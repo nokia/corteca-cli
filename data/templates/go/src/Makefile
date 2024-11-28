@@ -9,7 +9,7 @@ PATHS          = $(BIN_PATH) $(LIB_PATH)
 GO_LDFLAGS     = -s -w
 INCLUDE_DIR    = $(SYSROOT)usr/include
 LIBRARIES_DIR  = $(SYSROOT)usr/lib
-CGO_LDFLAGS    = "-L${LIBRARIES_DIR} $(LIBRARIES)"
+CGO_LDFLAGS    = "-L${LIBRARIES_DIR}"
 CGO_CFLAGS     = "-I$(INCLUDE_DIR)"
 CGO_ENABLED    = 1
 
@@ -26,7 +26,6 @@ $(BIN_PATH)/{{ .app.name }}: | $(PATHS)
 $(PATHS):
 	@echo "Create target path $@"
 	mkdir -p $@
-
 
 clean:
 	$(RM) $(BIN_PATH) $(LIB_PATH)
