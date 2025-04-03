@@ -14,6 +14,8 @@ corteca create DESTFOLDER
 
 ```text
 --skipPrompts   Bypasses interactive prompts for settings that are not provided through the command line -ideal for automation.
+--lang          Bypasses interactive prompt for application's programming language
+--fqdn          Bypasses interactive prompt for FQDN
 ```
 
 ### Example
@@ -34,12 +36,8 @@ In the `corteca.yaml`, the `app` section -related to the create command- specifi
 # According to the values we put in the above example, the corteca.yaml of the hello_world application -among other fields- should have these:
 
 app:
-    author: Foo
-    description: My hello world application
     duid: 126decdd-acd4-5229-a8e1-3da5d6b927ae
     fqdn: hello_world.foo.domain
-    lang: go
     name: hello_world
-    title: hello world
     version: 0.0.1
 ```

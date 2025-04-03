@@ -5,17 +5,12 @@
 # application.
 #
 # app:
-#     lang: <lang-template>       # an application template name
-#     title: <application-title>  # an application title (will be used for Corteca cloud metadata)
 #     name: <test-app>            # single word identifier which cannot contain
 #                                 # spaces (will be used for artifact naming)
 #     author: <author>            # application author (will be used for Corteca cloud metadata)
-#     description: |
-#       <application description> # multiline description (will be used for Corteca cloud metadata)
 #     version: <version>          # application version (will be used for Corteca cloud metadata)
 #     duid: <DUID>                # will be generated automatically from FQDN,
 #                                 # and will be used to uniquely identify the application
-#     options: {}                 # template specific options
 #     env:                        # custom environment variables inside app container
 #           <name>: <value>
 #     dependencies:
@@ -35,32 +30,30 @@
 #templates:
 #   <path/to/template/file>: <destination/path/to/rendered/file>
 
-# Toolchain settings
+# Build settings
 # ---------------------------
-# Build toolchain settings; these must exist in the system docker cache under
+# Build settings; these must exist in the system docker cache under
 # the name specified by the 'image' field below. Perform a `docker pull <image>`
 # and optionally a `docker tag <old-name> <new-name>` to name your images appropriately.
 build:
     # must contain entries in the form:
     #   image: <docker-image-name>
-    #   <target-machine>: 
-    toolchains:
-        image: ghcr.io/nokia/corteca-toolchain:24.2.3
-        architectures:
-            armv7l:
-                platform: "linux/arm/v7"
-            aarch64:
-                platform: "linux/arm64"
-            x86_64:
-                platform: "linux/amd64"
-    # default toolchain to use when building if none specified
+    #   <target-machine>:
+    architectures:
+        armv7l:
+            platform: "linux/arm/v7"
+        aarch64:
+            platform: "linux/arm64"
+        x86_64:
+            platform: "linux/amd64"
+    # default architecture to use when building if none specified
     default: aarch64
     options:
-        # rootfs, produces a compressed root filesystem as the build output; 
+        # rootfs, produces a compressed root filesystem as the build output;
         # oci, the output is an OCI image;
         # docker, for docker image output.
         outputType: rootfs
-        # If true, generates a container with additional debugging tools 
+        # If true, generates a container with additional debugging tools
         # to facilitate troubleshooting during development.
         debug: false
         # Do not inherit variables from the host environment (proxies etc)
@@ -71,7 +64,7 @@ build:
     crossCompile:
         enabled: true
         image: multiarch/qemu-user-static
-        args: [ "--reset", "-p", "yes" ]
+        args: ["--reset", "-p", "yes"]
 
 # Sequences
 # ---------------------------
@@ -93,6 +86,8 @@ sequences:
 #       publicURL: <public-url>             # public url of endpoint
 #       addr: <url>                         # url of endpoint
 #       auth: <type>                        # authentication type; one of `basic`, `bearer`, `digest`
+#       username: <username>                # username for registry authentication
+#       password: <password>                # password for registry authentication
 #       password2: <password2>              # password2 of device
 #       privateKeyFile: <path/to/file/name> # path to keyfile for private key authentication
 #       token: <auth-token>                 # authentication token for `bearer` authentication
@@ -102,19 +97,17 @@ publish:
         method: listen
         publicURL: http://172.17.0.1:8080
 
-    #   webserver:
-    #       addr: https://upload.example.com/artifacts/
-    #       auth: basic
-    #       method: put
-
     localRegistry:
         addr: http://0.0.0.0:8080
         method: registry-v2
+        publicURL: http://127.0.0.1:8080 # Should be changed
 
     # remoteRegistry:
-    #     addr: https://example.com
+    #     addr: https://corteca-registry.int.net.nokia.com
     #     auth: basic
     #     method: push
+    #     username: "${ .env.REGISTRY_USERNAME }"
+    #     password: "${ .env.REGISTRY_PASSWORD }"
 
 # Devices
 # ---------------------------
@@ -129,8 +122,8 @@ publish:
 devices:
     # beacon device
     beacon:
-        addr: ssh://{{ getEnv "BEACON_USER" }}:{{ getEnv "BEACON_PASS" }}@192.168.18.1
-        password2: "{{ getEnv \"PASSWORD2\" }}"
+        addr: ssh://${ .env.BEACON_USER }:${ .env.BEACON_PASS }@192.168.18.1
+        password2: "${ .env.PASSWORD2 }"
     # a qemu-based beacon virtualization
     qemu:
-        addr: ssh://{{ getEnv "vBEACON_USER" }}@172.17.0.2:{{ getEnv "vBEACON_PORT" }}
+        addr: ssh://${ .env.vBEACON_USER }@172.17.0.2:${ .env.vBEACON_PORT }

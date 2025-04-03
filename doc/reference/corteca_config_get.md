@@ -45,7 +45,6 @@ Output:
 
 ```yaml
 lang: go
-title: hello world
 name: hello_world
 author: Foo
 description: My hello world application
@@ -97,7 +96,6 @@ Output:
 
 ```yaml
 lang: ""
-title: ""
 name: ""
 author: ""
 description: ""

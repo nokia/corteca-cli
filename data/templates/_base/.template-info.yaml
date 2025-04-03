@@ -1,0 +1,5 @@
+name: _base
+description: "Base template for application"
+regenFiles:
+  .corteca/ADF.template: ADF
+  .corteca/Dockerfile.template: Dockerfile

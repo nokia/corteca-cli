@@ -29,6 +29,7 @@ var publishCmd = &cobra.Command{
 	Use:               "publish TARGET [ARCH]",
 	Short:             "Publish application artifact(s) to specified target, optionally filtering by architecture.",
 	Long:              "Publish application artifact(s) to specified target, optionally filtering by architecture.",
+	Example:           "",
 	Args:              cobra.RangeArgs(1, 2),
 	ValidArgsFunction: validPublishArgsFunc,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -55,10 +56,10 @@ func init() {
 func doPublishApp(targetName string, arch string, wait bool) {
 	requireBuildArtifact()
 	if specifiedArtifact != "" {
-		if arch != "" && cmdContext.Arch != arch {
-			fmt.Printf("Warning: differing architectures [%s,%s] were specified!\nPublishing %s...", arch, cmdContext.Arch, cmdContext.Arch)
+		if arch != "" && configuration.CmdContext.Arch != arch {
+			fmt.Printf("Warning: differing architectures [%s,%s] were specified!\nPublishing %s...", arch, configuration.CmdContext.Arch, configuration.CmdContext.Arch)
 		}
-		arch = cmdContext.Arch
+		arch = configuration.CmdContext.Arch
 	}
 
 	target, found := config.Publish[targetName]
@@ -94,11 +95,11 @@ func handlePublishMethodRegistry(target configuration.PublishTarget, arch string
 	tag, err := publish.GenerateTag(config.App, artifact, arch)
 	assertOperation("generating tag", err)
 
-	registryURL, err := url.Parse(target.Addr)
+	registryURL, err := url.Parse(target.Addr.String())
 	assertOperation("parsing registry url", err)
 
 	hostPort := net.JoinHostPort(registryURL.Hostname(), registryURL.Port())
-	registryServer, err := publish.StartRegistry(hostPort)
+	registryServer, err := publish.StartRegistry(hostPort, artifact)
 	if err != nil {
 		failOperation(fmt.Sprintf("failed to start local registry: %v", err))
 	}
@@ -125,10 +126,9 @@ func handlePublishMethodPut(target configuration.PublishTarget, arch string) {
 	if !found {
 		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, rootfsSuffix))
 	}
-
-	url, token, err := publish.AuthenticateHttp(target.Addr, target.Auth, target.Token)
+	url, err := publish.AuthenticateHttp(target.Endpoint)
 	assertOperation("performing http authentication", err)
-	doPut(artifact, url, token)
+	doPut(artifact, url, target.Token.String())
 }
 
 func handlePublishMethodPush(target configuration.PublishTarget, arch string) {
@@ -136,10 +136,10 @@ func handlePublishMethodPush(target configuration.PublishTarget, arch string) {
 	if !found {
 		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, ociSuffix))
 	}
-	url, token, err := publish.AuthenticateHttp(target.Addr, target.Auth, target.Token)
+	url, err := publish.AuthenticateHttp(target.Endpoint)
 	assertOperation("performing http authentication", err)
 
-	doPush(artifact, url, token, arch)
+	doPush(artifact, url, target.Token.String(), arch)
 }
 
 func doPush(artifact string, url *url.URL, token, arch string) {
@@ -151,12 +151,12 @@ func doPush(artifact string, url *url.URL, token, arch string) {
 
 func getArtifact(arch, suffix string) (string, bool) {
 	artifactKey := fmt.Sprintf("%s-%s", arch, suffix)
-	artifactFilename, found := cmdContext.BuildArtifacts[artifactKey]
+	artifactFilename, found := configuration.CmdContext.BuildArtifacts[artifactKey]
 	return artifactFilename, found
 }
 
 func doListen(target configuration.PublishTarget, wait bool) {
-	u, err := url.Parse(target.Addr)
+	u, err := url.Parse(target.Addr.String())
 	assertOperation("parsing target url", err)
 
 	serverRoot := distFolder
@@ -193,8 +193,8 @@ func validPublishArgsFunc(cmd *cobra.Command, args []string, toComplete string) 
 		}
 		return publishTargets, cobra.ShellCompDirectiveNoFileComp
 	} else if len(args) == 1 {
-		architectures := make([]string, 0, len(config.Build.Toolchains.Architectures))
-		for k := range config.Build.Toolchains.Architectures {
+		architectures := make([]string, 0, len(config.Build.Architectures))
+		for k := range config.Build.Architectures {
 			if strings.HasPrefix(k, toComplete) {
 				architectures = append(architectures, k)
 			}

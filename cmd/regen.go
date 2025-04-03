@@ -15,12 +15,13 @@ import (
 )
 
 var regenCmd = &cobra.Command{
-	Use:   "regen",
-	Short: "Regenerate template files",
-	Long:  "Regenerate template files",
+	Use:     "regen",
+	Short:   "Regenerate template files",
+	Long:    "Regenerate template files",
+	Example: "",
 	Run: func(cmd *cobra.Command, args []string) {
 		requireProjectContext()
-		doRegenTemplates(projectRoot)
+		doRegenTemplates(projectRoot, "")
 	},
 }
 
@@ -28,8 +29,12 @@ func init() {
 	rootCmd.AddCommand(regenCmd)
 }
 
-func doRegenTemplates(destFolder string) {
-	context := configuration.ToDictionary(config)
+func doRegenTemplates(destFolder, selectedArchitecture string) {
+	selectedArchitecture, settings := validateArchitecture(selectedArchitecture)
+	configuration.CmdContext.Arch = selectedArchitecture
+	configuration.CmdContext.Platform = settings.Platform
+
+	context := configuration.ToDictionary(configuration.CmdContext)
 	fs := afero.NewOsFs()
 
 	for srcFile, destFile := range config.Templates {

@@ -7,155 +7,127 @@ package cmd
 import (
 	"corteca/internal/builder"
 	"corteca/internal/configuration"
+	"corteca/internal/fsutil"
+	"corteca/internal/packager"
 	"corteca/internal/tui"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 )
 
+var (
+	rootfsPath string
+	err        error
+)
+
+const (
+	rootfsTarballName = "rootfs.tar.gz"
+)
+
 var buildCmd = &cobra.Command{
-	Use:               "build [TOOLCHAIN]",
-	Short:             "Build application",
-	Long:              `Build the application using the appropriate build toolchain`,
+	Use:   "build [ARCHITECTURE]",
+	Short: "Build an application",
+	Long:  `Build the application using the appropriate build architecture`,
+	Example: `#Build the application for specific architeture (armv7l) as OCI image
+corteca build armv7l --config build.options.outputType=oci`,
 	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: validBuildArgsFunc,
 	Run: func(cmd *cobra.Command, args []string) {
-		toolchain := ""
+		architecture := ""
 		if len(args) > 0 {
-			toolchain = args[0]
+			architecture = args[0]
 		}
 
-		doBuildApp(toolchain)
+		doBuildApp(architecture)
 	},
 }
 
-var (
-	buildAll   bool
-	outputType string
-)
-
 func init() {
-	buildCmd.PersistentFlags().BoolVar(&buildAll, "all", false, "Build for all platforms")
 	buildCmd.PersistentFlags().BoolVar(&noRegen, "no-regen", false, "Skip regeneration of templates")
+	buildCmd.PersistentFlags().StringVarP(&rootfsPath, "rootfs", "", "", "Specify prebuilt root filesystem")
 	rootCmd.AddCommand(buildCmd)
 }
 
-func doBuildApp(selectedName string) {
+func generateBuildInfo(version, appVersion string) map[string]string {
+	return map[string]string{
+		"com.nokia.corteca.version":     version,
+		"com.nokia.corteca.app.version": appVersion,
+		"com.nokia.corteca.app.created": time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
+func doBuildApp(selectedArchitecture string) {
 	requireProjectContext()
-	if !noRegen {
-		doRegenTemplates(projectRoot)
-	}
-	selectedName = getToolchainName(selectedName)
-	outputType = strings.ToLower(config.Build.Options.OutputType)
-	cmdContext.Toolchain.Image = config.Build.Toolchains.Image
-	enableCrossCompilation(config.Build.CrossCompile)
-
-	if buildAll {
-		handleBuildAll()
-	} else {
-		handleSinglePlatformBuild(selectedName)
-	}
-}
-
-func handleBuildAll() {
-	switch outputType {
-	case "rootfs":
-		buildAllRootfs()
-	case "docker", "oci":
-		buildMultiPlatformImage()
-	default:
-		failOperation(fmt.Sprintf("Unknown image type: %s", config.Build.Options.OutputType))
-	}
-}
-
-func handleSinglePlatformBuild(selectedName string) {
-	switch outputType {
-	case "rootfs", "docker", "oci":
-		buildSinglePlatform(selectedName)
-	default:
-		failOperation(fmt.Sprintf("Unknown image type: %s", config.Build.Options.OutputType))
-	}
-}
-
-func getToolchainName(selectedName string) string {
-	if selectedName == "" {
-		return config.Build.Default
-	} else if _, ok := config.Build.Toolchains.Architectures[selectedName]; !ok {
-		failOperation(fmt.Sprintf("no configuration present for toolchain: \"%v\"", selectedName))
-	}
-	return selectedName
-}
-
-func buildAllRootfs() {
-	for name, settings := range config.Build.Toolchains.Architectures {
-		cmdContext.Toolchain.Name = name
-		cmdContext.Toolchain.Platform = settings.Platform
-
-		fmt.Printf("Building rootfs with toolchain '%s'...\n", name)
-		err := doBuildTarget(name, settings.Platform, config.Build.Options)
-		if err != nil {
-			handleBuildError(name, err)
+	if rootfsPath != "" {
+		info, err := os.Stat(rootfsPath)
+		assertOperation("reading prebuild root fs path", err)
+		if info.IsDir() {
+			failOperation("Rootfs from folder is not supported")
 		}
-		tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully with toolchain '%v'\n", config.App.Name, name))
 	}
-}
-
-func buildMultiPlatformImage() {
-	var platforms []string
-	for _, settings := range config.Build.Toolchains.Architectures {
-		platforms = append(platforms, settings.Platform)
-	}
-	platformArg := strings.Join(platforms, ",")
-
-	fmt.Println("Building multi-platform image for platforms:", platformArg)
-	err := doBuildTarget("multi", platformArg, config.Build.Options)
-	if err != nil {
-		tui.DisplayErrorMsg(fmt.Sprintf("Error building multi-platform image: %s", err.Error()))
-		failOperation("Build failed")
-	}
-	tui.DisplaySuccessMsg("Multi-platform image built successfully")
-}
-
-func buildSinglePlatform(selectedName string) {
-	settings := config.Build.Toolchains.Architectures[selectedName]
-	cmdContext.Toolchain.Name = selectedName
-	cmdContext.Toolchain.Platform = settings.Platform
-
-	fmt.Printf("Building with toolchain '%s'...\n", selectedName)
-	err := doBuildTarget(selectedName, settings.Platform, config.Build.Options)
-	if err != nil {
-		handleBuildError(selectedName, err)
-	}
-	tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully with toolchain '%v'\n", config.App.Name, selectedName))
-}
-
-func handleBuildError(toolchainName string, err error) {
-	tui.DisplayErrorMsg(fmt.Sprintf("Error building '%s': %s", toolchainName, err.Error()))
-	failOperation("Build failed")
-}
-
-func doBuildTarget(architecture string, platform string, buildOptions configuration.BuildOptions) error {
-	err := builder.BuildContainer(config.Build.Toolchains.Image, architecture, platform, projectRoot, config.App, buildOptions)
-
-	if err != nil {
-		return fmt.Errorf("invoking toolchain image '%v': %v", config.Build.Toolchains.Image, err)
+	if !noRegen {
+		doRegenTemplates(projectRoot, selectedArchitecture)
 	}
 
-	return nil
-}
+	selectedArchitecture, settings := validateArchitecture(selectedArchitecture)
+	outputType := strings.ToLower(config.Build.Options.OutputType)
+	configuration.CmdContext.Arch = selectedArchitecture
+	configuration.CmdContext.Platform = settings.Platform
+	buildMetadata := generateBuildInfo(appVersion, config.App.Version)
 
-func enableCrossCompilation(crossCompileSettings configuration.CrossCompileConfig) error {
-	if err := builder.EnableMultiplatformBuild(crossCompileSettings); err != nil {
-		return fmt.Errorf("setting up QEMU for cross-compilation failed: %w", err)
+	// STEP 0: create necessary folders
+	tmpBuildPath, err := os.MkdirTemp("", "corteca_build-")
+	assertOperation("creating temporary folder", err)
+
+	rootfsBuildPath := filepath.Join(tmpBuildPath, "rootfs")
+	err = os.MkdirAll(rootfsBuildPath, 0777)
+	assertOperation("creating rootfs folder", err)
+
+	distPath := filepath.Join(projectRoot, "dist")
+	assertOperation("creating dist directory", os.MkdirAll(distPath, 0755))
+
+	// STEP 1: build rootfs
+	if rootfsPath == "" {
+		assertOperation(fmt.Sprintf("building '%s'", selectedArchitecture), builder.BuildRootFS(projectRoot, rootfsBuildPath, settings, config.App, config.Build))
+	} else {
+		fsutil.ExtractTarball(rootfsPath, rootfsBuildPath)
 	}
-	return nil
+
+	// STEP 2: validate rootfs
+	// TODO: skip if a flag to skip validation has been provided
+	assertOperation("validating rootfs", packager.ValidateRootFS(rootfsBuildPath, selectedArchitecture, config.App))
+
+	// STEP 3: annotate rootfs with build information
+	assertOperation("adding annotations", packager.AnnotateRootFS(rootfsBuildPath, config.App, buildMetadata))
+
+	// STEP 4: commpress rootfs into a tarball
+	tmprootfsTarGzPath := filepath.Join(tmpBuildPath, rootfsTarballName)
+	assertOperation("compressing rootfs", packager.CompressRootfs(rootfsBuildPath, tmprootfsTarGzPath))
+
+	// STEP 5: create amd commpress runtime config into a tarball
+	assertOperation("create and compress runtime config", packager.CreateAndCompressRuntimeConfig(tmpBuildPath, config.App, buildMetadata))
+
+	// STEP 6: package rootfs depending on the output type
+	switch outputType {
+	case "oci":
+		assertOperation("packaging OCI", packager.PackageOCI(tmpBuildPath, distPath, selectedArchitecture, settings.Platform, tmprootfsTarGzPath, config.App))
+	case "rootfs":
+		assertOperation("packaging RootFS", packager.PackageRootFS(tmpBuildPath, projectRoot, distPath, selectedArchitecture, outputType, config.App))
+	default:
+		failOperation(fmt.Sprintf("Unsupported output type: %q", outputType))
+	}
+
+	tui.DisplaySuccessMsg(fmt.Sprintf("Application '%v' was built successfully for '%v'", config.App.Name, selectedArchitecture))
 }
 
 func validBuildArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) == 0 {
-		architectures := make([]string, 0, len(config.Build.Toolchains.Architectures))
-		for k := range config.Build.Toolchains.Architectures {
+		architectures := make([]string, 0, len(config.Build.Architectures))
+		for k := range config.Build.Architectures {
 			if strings.HasPrefix(k, toComplete) {
 				architectures = append(architectures, k)
 			}
@@ -164,4 +136,13 @@ func validBuildArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([
 	}
 
 	return nil, cobra.ShellCompDirectiveNoFileComp
+}
+
+func validateArchitecture(selectedArchitecture string) (string, configuration.ArchitectureSettings) {
+	if selectedArchitecture == "" {
+		return config.Build.Default, config.Build.Architectures[config.Build.Default]
+	} else if _, ok := config.Build.Architectures[selectedArchitecture]; !ok {
+		failOperation(fmt.Sprintf("no configuration present for toolchain: \"%v\"", selectedArchitecture))
+	}
+	return selectedArchitecture, config.Build.Architectures[selectedArchitecture]
 }

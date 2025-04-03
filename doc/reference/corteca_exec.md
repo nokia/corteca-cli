@@ -47,17 +47,17 @@ sequences:
     #     input: <command-input>
     install:
       - delay: 1000
-      - cmd: "PluginCli install -u {{.publish.publicURL}}/{{.buildArtifact}} -i
-            {{.app.duid}}"
+      - cmd: "PluginCli install -u ${.publish.publicURL}/${.buildArtifact} -i
+            ${.app.duid}"
         delay: 1000
-      - cmd: "lxc-ls  -P /opt/lxc/NOS/ | grep {{.app.name}}"
+      - cmd: "lxc-ls  -P /opt/lxc/NOS/ | grep ${.app.name}"
         delay: 1000
         retries: 30
     deploy:
       - cmd: $(install)
-      - cmd: "PluginCli start -i {{.app.duid}}"
+      - cmd: "PluginCli start -i ${.app.duid}"
         delay: 20000
-      - cmd: "lxc-ls -f -P /opt/lxc/NOS/ | grep -o {{.app.name}}[[:space:]]*RUNNING |
+      - cmd: "lxc-ls -f -P /opt/lxc/NOS/ | grep -o ${.app.name}[[:space:]]*RUNNING |
             sed 's/ //g'"
         delay: 1000
         retries: 10
@@ -79,11 +79,11 @@ In the `corteca.yaml`, the `devices` section -related to the exec command- speci
 devices:
     # beacon device
     beacon:
-        addr: ssh://{{ getEnv "BEACON_USER" }}:{{ getEnv "BEACON_PASS" }}@192.168.18.1
-        password2: "{{ getEnv \"PASSWORD2\" }}"
+        addr: ssh://${ .env.BEACON_USER }:${ .env.BEACON_PASS }@192.168.18.1
+        password2: "${ .env.PASSWORD2 }"
     # a qemu-based beacon virtualization
     qemu:
-        addr: ssh://{{ getEnv "vBEACON_USER" }}@172.17.0.2:{{ getEnv "vBEACON_PORT" }}
+        addr: ssh://${ .env.vBEACON_USER }@172.17.0.2:${ .env.vBEACON_PORT }
 
 ```
 

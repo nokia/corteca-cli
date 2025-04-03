@@ -44,7 +44,6 @@ test_global_config_get() {
 }
 
 test_global_config_add(){
-    cd test-template
     begin_test "Testcase: global corteca config --global add"
     corteca config --global add devices "foo: { addr: bar }"
     assert_test_equal "corteca config add" $? 0
@@ -64,24 +63,23 @@ test_user_config_get() {
 test_create_test_template_with_cmd () {
     begin_test "Testcase: corteca create test_template"
     local applang="test-template"
-    local apptitle="test-application"
     local appname="test-app"
     local appversion="1.1.1"
     local appfqdn="test.application.org"
     local appauthor="author"
-    local expected_layout="./corteca.yaml ./src/folder_should.exist/should.exist ./src/should.exist ./src/${appname}.file ./.corteca/test.template"
+    local expected_layout="./corteca.yaml ./src/${appname}.file ./.corteca/test.template"
     # sort expected layout
     expected_layout=$(echo "${expected_layout}" | xargs -n1 | sort)
     mkdir -p $HOME/.config/corteca/templates
     cp -r /ft/test-template $HOME/.config/corteca/templates/
+    cp -r /ft/_baseTestTemplate $HOME/.config/corteca/templates/
 
     corteca create test-template \
         --skipPrompts \
-        --config app.lang="${applang}" \
-        --config app.title="${apptitle}" \
+        --lang="${applang}" \
+        --fqdn="${appfqdn}" \
         --config app.name="${appname}" \
         --config app.version="${appversion}" \
-        --config app.fqdn="${appfqdn}" \
         --config app.author="${appauthor}"
 
     assert_test_equal "corteca create test-template" $? 0
@@ -101,7 +99,7 @@ test_regen() {
     corteca config set app.name test-template-regen
 
     #check project layout
-    expected_layout="./corteca.yaml ./src/folder_should.exist/should.exist ./src/should.exist ./src/test-app.file ./test ./.corteca/test.template"
+    expected_layout="./.corteca/test.template ./corteca.yaml ./src/test-app.file ./test"
     actual_layout=$(find . -type f | sort | tr '\n' ' ' | sed 's/[[:space:]]*$//')
     assert_test_equal "updated folder layout after regenerating template files" "${actual_layout}" "${expected_layout}"
 
@@ -297,7 +295,6 @@ wait_for_ssh_connectivity() {
 
 create_template_app() {
     lang="$1"
-    local apptitle="${lang}-application"
     local appname="${lang}-app"
     local appversion="1.1.1"
     local appfqdn="${lang}.application.org"
@@ -306,11 +303,10 @@ create_template_app() {
     echo "Creating ${lang} application..."
     ./dist/bin/corteca-linux-amd64-* -r ./data/ create ${lang} \
         --skipPrompts \
-        --config app.lang="${lang}" \
-        --config app.title="${apptitle}" \
+        --lang="${lang}" \
+        --fqdn="${appfqdn}" \
         --config app.name="${appname}" \
         --config app.version="${appversion}" \
-        --config app.fqdn="${appfqdn}" \
         --config app.author="${appauthor}"
 }
 

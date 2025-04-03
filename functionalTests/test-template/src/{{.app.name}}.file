@@ -1,11 +1,5 @@
 This is a test file
 
-app.lang:                   {{ .app.lang }}
-app.title:                  {{ .app.title }}
 app.name:                   {{ .app.name }}
 app.version:                {{ .app.version }}
-app.fqdn:                   {{ .app.fqdn }}
 app.author:                 {{ .app.author }}
-app.options.test_flag:      {{ .app.options.test_flag }}
-app.options.test_value:     {{ .app.options.test_value }}
-app.options.test_choice:    {{ .app.options.test_choice }}

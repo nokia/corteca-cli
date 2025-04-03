@@ -66,47 +66,19 @@ uninstall:
 $(PACKAGES):
 	mkdir -p $(PACKAGES)
 
-deb: GOOS := linux
-deb: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
-deb: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
-deb: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
-deb: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
-deb: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).deb
-deb: $(GOOS)-target | $(PACKAGES)
-deb: unix-completions
-	fpm -f -s dir \
-		-t deb \
-		-C "$(DESTDIR)" \
-		--name corteca-cli \
-		--version $(VERSION) \
-		--iteration 1 \
-		--description "Corteca Developer Toolkit cli" \
-		--no-deb-generate-changes \
-		--package $(PACKAGES)/$(PKGNAME) \
-		--depends "docker.io | docker-ce | podman-docker" \
-		--architecture $(GOARCH) \
-		--maintainer "Nokia" \
-		--url "https://nokia.com"
-
-rpm: GOOS := linux
-rpm: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
-rpm: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
-rpm: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
-rpm: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
-rpm: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).rpm
-rpm: $(GOOS)-target | $(PACKAGES)
-rpm: unix-completions
-	fpm -f -s dir \
-		-t rpm \
-		-C "$(DESTDIR)" \
-		--name corteca-cli \
-		--version $(VERSION) \
-		--iteration 1 \
-		--description "Corteca Developer Toolkit cli" \
-		--package $(PACKAGES)/$(PKGNAME) \
-		--architecture $(GOARCH) \
-		--maintainer "Nokia" \
-		--url "https://nokia.com"
+deb rpm: GOOS := linux
+deb rpm: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
+deb rpm: BASH_COMPLETION_DIR := ${DESTDIR}/etc/bash_completion.d
+deb rpm: ZSH_COMPLETION_DIR := ${DESTDIR}/usr/share/zsh/site-functions
+deb rpm: FISH_COMPLETION_DIR := ${DESTDIR}/usr/share/fish/completions
+deb rpm: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH)
+deb rpm: $(GOOS)-target | $(PACKAGES)
+deb rpm: unix-completions
+	VERSION=$(VERSION) \
+	GOARCH=$(GOARCH) \
+	DESTDIR=$(DESTDIR) \
+	envsubst < nfpm.yaml.template > nfpm.yaml
+	nfpm pkg --config nfpm.yaml --packager $@ --target $(PACKAGES)/$(PKGNAME).$@
 
 osx: GOOS := darwin
 osx: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)
@@ -117,19 +89,6 @@ osx: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).osxpkg
 osx: $(GOOS)-target | $(PACKAGES)
 osx: unix-completions
 	(cd $(TMP) && zip -r $(PACKAGES)/$(BINARY_NAME)_$(VERSION)_$(GOARCH).zip "$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)")
-# 	mkdir -p $(PACKAGES)
-#	@echo This can only run on OSX
-#	 fpm -f -s dir \
-#		-t osxpkg \
-#		-C "$(DESTDIR)" \
-#		--name corteca-cli \
-#		--version $(VERSION) \
-#		--iteration 1 \
-#		--description "Corteca Developer Toolkit cli" \
-#		--package $(PACKAGES)/$(PKGNAME) \
-#		--architecture $(GOARCH) \
-#		--maintainer "Nokia" \
-#		--url "https://nokia.com" .
 
 msi: GOOS := windows
 msi: DESTDIR := $(TMP)/$(BINARY_NAME)_$(GOOS)_$(VERSION)_$(GOARCH)

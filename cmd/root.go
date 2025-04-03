@@ -42,32 +42,11 @@ var (
 	distFolder        string
 	specifiedArtifact string
 	configOverrides   []string
-	languages         map[string]configuration.TemplateInfo
+	templates         map[string]configuration.TemplateInfo
 	appVersion        string
 	skipLocalConfig   bool
 	noRegen           bool
 )
-
-var cmdContext struct {
-	App            *configuration.AppSettings `yaml:"app,omitempty"`
-	Arch           string                     `yaml:"arch,omitempty"`
-	BuildArtifacts map[string]string          `yaml:"buildArtifacts,omitempty"`
-	Device         struct {
-		configuration.DeployDevice `yaml:",omitempty,inline"`
-		Name                       string `yaml:"name,omitempty"`
-	} `yaml:"device,omitempty"`
-	Publish struct {
-		configuration.PublishTarget `yaml:",omitempty,inline"`
-		Name                        string `yaml:"name,omitempty"`
-	} `yaml:"publish,omitempty"`
-	Toolchain struct {
-		Image    string `yaml:"image,omitempty"`
-		Name     string `yaml:"name,omitempty"`
-		Platform string `yaml:"platform,omitempty"`
-	} `yaml:"toolchain,omitempty"`
-	Build         *configuration.BuildSettings `yaml:"build,omitempty"`
-	BuildArtifact string                       `yaml:"buildArtifact,omitempty"`
-}
 
 var rootCmd = &cobra.Command{
 	Use:              "corteca",
@@ -143,67 +122,28 @@ func overrideConfigValues() error {
 	return nil
 }
 
-func getLanguages() {
-	if languages != nil {
+func getTemplates() {
+	if templates != nil {
 		return
 	}
-	languages = make(map[string]configuration.TemplateInfo)
-	assertOperation("searching for system-wide language templates", configuration.GetAvailableTemplates(languages, filepath.Join(systemConfigRoot, "templates")))
-	assertOperation("searching for user language templates", configuration.GetAvailableTemplates(languages, filepath.Join(userConfigRoot, "templates")))
+	templates = make(map[string]configuration.TemplateInfo)
+	assertOperation("searching for system-wide language templates", configuration.GetAvailableTemplates(templates, filepath.Join(systemConfigRoot, "templates")))
+	assertOperation("searching for user language templates", configuration.GetAvailableTemplates(templates, filepath.Join(userConfigRoot, "templates")))
 }
 
-func validateAppSettings(populateDefaults bool) error {
-	getLanguages()
-	var templ configuration.TemplateInfo
-	var found bool
-	if templ, found = languages[config.App.Lang]; !found {
-		return fmt.Errorf("no template for language '%v' was found", config.App.Lang)
-	}
-	if config.App.Title == "" {
-		return fmt.Errorf("no application title has been specified")
-	}
+func validateAppSettings() error {
 	if config.App.Name == "" {
 		return fmt.Errorf("no application name has been specified")
 	}
 	if config.App.Version == "" {
 		return fmt.Errorf("no application version has been specified")
 	}
-	if config.App.FQDN == "" {
-		return fmt.Errorf("no application FQDN has been specified")
-	} else if config.App.DUID == "" {
-		config.App.DUID = generateDUID(config.App.FQDN)
-		fmt.Printf("Generated application DUID: %v\n", config.App.DUID)
+	if config.App.DUID == "" {
+		return fmt.Errorf("DUID has not been generated successfully")
 	}
-	for _, option := range templ.Options {
-		if _, found = config.App.Options[option.Name]; found {
-			value, err := validateOptionValue(config.App.Options[option.Name], option)
-			if err != nil {
-				return err
-			}
-			config.App.Options[option.Name] = value
-		} else if populateDefaults {
-			config.App.Options[option.Name] = option.Default
-		}
+	if config.App.Entrypoint == "" {
+		config.App.Entrypoint = filepath.Join("/bin", config.App.Name)
 	}
-	config.App.Entrypoint = filepath.Join("/bin", config.App.Name)
-	config.App.Runtime = defaultRuntimeSpec(config.App.Name)
-
-	// populate app dependencies
-	if populateDefaults {
-		config.App.Dependencies.Compile = append(config.App.Dependencies.Compile, templ.Dependencies.Compile...)
-		config.App.Dependencies.Runtime = append(config.App.Dependencies.Runtime, templ.Dependencies.Runtime...)
-	}
-
-	for templFile, destFile := range templ.RegenFiles {
-		templPath := filepath.Join(templ.Path, templFile)
-
-		if _, err := os.Stat(templPath); os.IsNotExist(err) {
-			return fmt.Errorf("template file '%s' does not exist in template folder", templFile)
-		}
-
-		config.Templates[templFile] = destFile
-	}
-
 	return nil
 }
 
@@ -262,8 +202,8 @@ func requireProjectContext() {
 		failOperation("must be run inside a project context")
 		os.Exit(1)
 	}
-	cmdContext.App = &config.App
-	cmdContext.Build = &config.Build
+	configuration.CmdContext.App = &config.App
+	configuration.CmdContext.Build = &config.Build
 }
 
 func splitSpecifiedArtifact(specifiedArtifact string) (arch, imgType, path string) {
@@ -289,26 +229,26 @@ func getAppNameFromArtifact(artifactPath string) string {
 }
 
 func requireBuildArtifact() {
-	cmdContext.BuildArtifacts = make(map[string]string)
+	configuration.CmdContext.BuildArtifacts = make(map[string]string)
 	if specifiedArtifact != "" {
 		artifactArch, artifactType, artifactPath := splitSpecifiedArtifact(specifiedArtifact)
 		if _, err := os.Stat(artifactPath); errors.Is(err, os.ErrNotExist) {
 			failOperation(fmt.Sprintf("file %s not found", artifactPath))
 		}
-		cmdContext.BuildArtifacts[artifactArch+"-"+artifactType] = artifactPath
+		configuration.CmdContext.BuildArtifacts[artifactArch+"-"+artifactType] = artifactPath
 		distFolder = filepath.Dir(artifactPath)
-		cmdContext.Arch = artifactArch
+		configuration.CmdContext.Arch = artifactArch
 		// Set necessary build field for deployment
-		cmdContext.Build = &config.Build
-		cmdContext.Build.Options.OutputType = artifactType
+		configuration.CmdContext.Build = &config.Build
+		configuration.CmdContext.Build.Options.OutputType = artifactType
 		// Set necessary app fields for deployment
-		cmdContext.App = &config.App
+		configuration.CmdContext.App = &config.App
 
-		if skipLocalConfig || len(cmdContext.App.DUID) == 0 {
-			cmdContext.App.DUID = generateDUID(artifactPath)
+		if skipLocalConfig || len(configuration.CmdContext.App.DUID) == 0 {
+			configuration.CmdContext.App.DUID = generateDUID(artifactPath)
 		}
-		if skipLocalConfig || len(cmdContext.App.Name) == 0 {
-			cmdContext.App.Name = getAppNameFromArtifact(artifactPath)
+		if skipLocalConfig || len(configuration.CmdContext.App.Name) == 0 {
+			configuration.CmdContext.App.Name = getAppNameFromArtifact(artifactPath)
 		}
 
 		return
@@ -328,7 +268,7 @@ func requireBuildArtifact() {
 	matchArchitectures(commonArchRegex, rootfsFiles, "rootfs")
 	matchArchitectures(commonArchRegex, ociFiles, "oci")
 
-	if len(cmdContext.BuildArtifacts) == 0 {
+	if len(configuration.CmdContext.BuildArtifacts) == 0 {
 		failOperation("no build artifacts found")
 	}
 }
@@ -343,7 +283,7 @@ func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactTy
 			continue
 		}
 		cpuArch := matches[1]
-		if curArtifactName, ok := cmdContext.BuildArtifacts[cpuArch+"-"+artifactType]; ok {
+		if curArtifactName, ok := configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType]; ok {
 			curArtifactInfo, err := os.Stat(curArtifactName)
 			if err != nil {
 				failOperation(fmt.Sprintf("stating artifact %s failed: %v", curArtifactName, err))
@@ -356,15 +296,18 @@ func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactTy
 
 			// Update the selection if the new candidate is more recent and continue the loop
 			if distFileInfo.ModTime().After(curArtifactInfo.ModTime()) {
-				cmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
+				configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
 			}
 
 			continue
 		}
-		cmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
+		configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
 	}
 }
 
-func generateDUID(FQDN string) string {
-	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(FQDN)).String()
+func generateDUID(input string) string {
+	if input == "" {
+		return ""
+	}
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte(input)).String()
 }

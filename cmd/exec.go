@@ -15,6 +15,7 @@ var execCmd = &cobra.Command{
 	Use:               "exec NAMED-SEQUENCE DEVICE",
 	Short:             "Execute sequence",
 	Long:              `Execute sequence to a specified device`,
+	Example:           "",
 	Args:              cobra.ExactArgs(2),
 	ValidArgsFunction: validExecArgsFunc,
 	Run:               func(cmd *cobra.Command, args []string) { doExecSequence(args[0], args[1]) },
@@ -41,15 +42,15 @@ func doExecSequence(sequence, deviceName string) {
 
 	requireBuildArtifact()
 	var found bool
-	cmdContext.Device.Name = deviceName
-	cmdContext.Device.DeployDevice, found = config.Devices[deviceName]
+	configuration.CmdContext.Device.Name = deviceName
+	configuration.CmdContext.Device.DeployDevice, found = config.Devices[deviceName]
 	if !found {
 		failOperation(fmt.Sprintf("device '%s' not found", deviceName))
 	}
 
 	// connect to the device console
-	fmt.Printf("Connecting to device console at %s...\n", cmdContext.Device.Addr)
-	conn, err := device.Connect(cmdContext.Device.Endpoint.Addr, cmdContext.Device.Endpoint.Auth, cmdContext.Device.Endpoint.PrivateKeyFile, cmdContext.Device.Endpoint.Password2, sshLogging)
+	fmt.Printf("Connecting to device console at %s...\n", configuration.CmdContext.Device.Addr.String())
+	conn, err := device.Connect(configuration.CmdContext.Device.Endpoint.Addr.String(), configuration.CmdContext.Device.Endpoint.Auth, configuration.CmdContext.Device.Endpoint.PrivateKeyFile.String(), configuration.CmdContext.Device.Endpoint.Password2.String(), sshLogging)
 	assertOperation("connecting to device console", err)
 	defer conn.Close()
 
@@ -58,34 +59,34 @@ func doExecSequence(sequence, deviceName string) {
 		if containerType == "" {
 			failOperation("no valid container framework found on device")
 		}
-		cmdContext.Build.Options.OutputType = containerType
+		configuration.CmdContext.Build.Options.OutputType = containerType
 	}
 
 	// populate contextCmd
-	cmdContext.Arch, err = device.DiscoverTargetCPUarch(*conn)
+	configuration.CmdContext.Arch, err = device.DiscoverTargetCPUarch(*conn)
 	if err != nil {
 		assertOperation("discovering device cpu architecture", err)
 	}
-	fmt.Printf("Discovered CPU architecture for '%s': '%s'\n", deviceName, cmdContext.Arch)
+	fmt.Printf("Discovered CPU architecture for '%s': '%s'\n", deviceName, configuration.CmdContext.Arch)
 
-	artifactKey := fmt.Sprintf("%s-%s", cmdContext.Arch, cmdContext.Build.Options.OutputType)
-	buildArtifact, ok := cmdContext.BuildArtifacts[artifactKey]
+	artifactKey := fmt.Sprintf("%s-%s", configuration.CmdContext.Arch, configuration.CmdContext.Build.Options.OutputType)
+	buildArtifact, ok := configuration.CmdContext.BuildArtifacts[artifactKey]
 	if !ok {
-		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", cmdContext.Arch))
+		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", configuration.CmdContext.Arch))
 	}
-	cmdContext.BuildArtifact = filepath.Base(buildArtifact)
+	configuration.CmdContext.BuildArtifact = filepath.Base(buildArtifact)
 
-	cmdContext.Publish.PublishTarget = config.Publish[publishTargetName]
-	cmdContext.Publish.Name = publishTargetName
+	configuration.CmdContext.Publish.PublishTarget = config.Publish[publishTargetName]
+	configuration.CmdContext.Publish.Name = publishTargetName
 	// publish build artifact(s) if a publish target has been specified in the deploy source
 	if publishTargetName != "" {
-		fmt.Printf("Publishing \"%s\" artifact to \"%s\"\n", cmdContext.Arch, cmdContext.Publish.Name)
-		doPublishApp(cmdContext.Publish.Name, cmdContext.Arch, false)
+		fmt.Printf("Publishing \"%s\" artifact to \"%s\"\n", configuration.CmdContext.Arch, configuration.CmdContext.Publish.Name)
+		doPublishApp(configuration.CmdContext.Publish.Name, configuration.CmdContext.Arch, false)
 	}
 
 	// execute the sequence
 	fmt.Printf("Deploying %s...\n", buildArtifact)
-	assertOperation("executing "+sequence+" sequence", config.ExecuteSequence(sequence, configuration.ToDictionary(cmdContext), func(cmd string) error {
+	assertOperation("executing "+sequence+" sequence", config.ExecuteSequence(sequence, configuration.ToDictionary(configuration.CmdContext), func(cmd string) error {
 		_, _, err := conn.SendCmd(cmd)
 		return err
 	}))

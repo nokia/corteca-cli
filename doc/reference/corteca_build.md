@@ -1,6 +1,6 @@
 # `build`
 
-The build command builds the application using a specified or default build toolchain. This command is versatile, allowing either a single platform or multiple platforms to be targeted based on the toolchain configurations in corteca.yaml. Below is an overview of its usage, flags, and functionality.
+The build command builds the application using a specified or default build configuration. This command is versatile, allowing either a single platform or multiple platforms to be targeted based on the build configurations in corteca.yaml. Below is an overview of its usage, flags, and functionality.
 
 ## Usage
 
@@ -9,15 +9,15 @@ The build command builds the application using a specified or default build tool
 To build for a specific architecture **within a project**, run:
 
 ```sh
-corteca build TOOLCHAIN
+corteca build ARCHITECTURE
 ```
 
-**TOOLCHAIN** (optional): Specifies the toolchain architecture to use for the build. If omitted, the default toolchain (aarch64) is used.
+**ARCHITECTURE** (optional): Specifies the architecture to use for the build. If omitted, the default architecture (aarch64) is used.
 
 ### Flags
 
 ```yaml
---all          Build the application for all available platforms specified in the configuration. Use this for multi-platform support.
+--rootfs       Specify prebuilt root filesystem
 --no-regen     Skip the regeneration of template files before building
 ```
 
@@ -31,20 +31,18 @@ corteca build TOOLCHAIN
 
 ## Configuration
 
-In the `corteca.yaml`, the `build` section -related to the build command- specifies toolchain settings you can alter during the build process.
+In the `corteca.yaml`, the `build` section -related to the build command- specifies build settings you can alter during the build process.
 
 ```yaml
 build:
-    toolchains:
-        image: ghcr.io/nokia/corteca-toolchain:24.2.3
-        architectures:
-            armv7l:
-                platform: "linux/arm/v7"
-            aarch64:
-                platform: "linux/arm64"
-            x86_64:
-                platform: "linux/amd64"
-    # default toolchain to use when building if none specified
+    architectures:
+        armv7l:
+            platform: "linux/arm/v7"
+        aarch64:
+            platform: "linux/arm64"
+        x86_64:
+            platform: "linux/amd64"
+    # default architecture to use when building if none specified
     default: aarch64
     options:
         # rootfs, produces a compressed root filesystem as the build output;

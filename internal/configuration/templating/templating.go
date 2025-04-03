@@ -17,7 +17,7 @@ import (
 )
 
 func RenderTemplateString(tmpl string, context any) (string, error) {
-	nameTmpl, err := template.New("").Funcs(template.FuncMap{"getEnv": GetEnvVar}).Option("missingkey=error").Parse(tmpl)
+	nameTmpl, err := template.New("").Option("missingkey=error").Parse(tmpl)
 	if err != nil {
 		return "", err
 	}
@@ -71,14 +71,6 @@ func RenderTemplateFile(fs afero.Fs, relativePath, srcDir, destRootDir string, c
 	}
 
 	return nil
-}
-
-func GetEnvVar(envVarName string, defaultValue ...string) string {
-	envVarValue, exists := os.LookupEnv(envVarName)
-	if !exists && len(defaultValue) == 0 {
-		return defaultValue[0]
-	}
-	return envVarValue
 }
 
 func RenderTemplateToFile(fs afero.Fs, srcFile, destFile string, context any) error {

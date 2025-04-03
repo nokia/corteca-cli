@@ -189,28 +189,45 @@ func ExtractTarball(src, dest string) error {
 		}
 
 		// Determine the proper path for the file
-		target := filepath.Join(dest, header.Name)
+		targetPath := filepath.Join(dest, header.Name)
 
 		// Handle directories and regular files
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
 				return fmt.Errorf("could not create directory: %v", err)
 			}
 		case tar.TypeReg:
-			dir := filepath.Dir(target)
+			dir := filepath.Dir(targetPath)
 			if err := os.MkdirAll(dir, 0755); err != nil {
 				return fmt.Errorf("could not create directory: %v", err)
 			}
 
-			outFile, err := os.Create(target)
+			outFile, err := os.Create(targetPath)
 			if err != nil {
 				return fmt.Errorf("could not create file: %v", err)
 			}
 			defer outFile.Close()
 
+			err = os.Chmod(targetPath, header.FileInfo().Mode())
+			if err != nil {
+				return fmt.Errorf("could not set permissions to file: %v", err)
+			}
+
 			if _, err := io.Copy(outFile, tarReader); err != nil {
 				return fmt.Errorf("could not write file: %v", err)
+			}
+		case tar.TypeSymlink:
+			linkTarget := header.Linkname
+
+			if err := os.Symlink(linkTarget, targetPath); err != nil {
+				return fmt.Errorf("failed to create symlink: %w", err)
+			}
+		case tar.TypeLink:
+			linkTarget := filepath.Join(dest, header.Linkname)
+
+			if err := os.Link(linkTarget, targetPath); err != nil {
+				return fmt.Errorf("failed to create hard link: %w", err)
 			}
 		default:
 			return fmt.Errorf("unknown tar entry type: %v", header.Typeflag)
@@ -256,14 +273,6 @@ func CreateTarArchive(fileName, archivePath string) error {
 	}
 
 	return nil
-}
-
-func ConvertMapToSlice(stringMap map[string]string) []string {
-	slice := make([]string, 0, len(stringMap))
-	for key, value := range stringMap {
-		slice = append(slice, fmt.Sprintf("%s=%s", key, value))
-	}
-	return slice
 }
 
 func RemoveFilesFromFolder(directoryPath string, filesToRemove []string) error {

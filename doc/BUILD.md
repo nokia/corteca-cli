@@ -1,7 +1,5 @@
 # Build
 
-## Build using native Go toolchain
-
 To build the tool, use the provided `Makefile` as follows:
 
 ```bash
@@ -13,12 +11,6 @@ Keep in mind that Go v1.21 is required.
 ## Build using docker
 
 ### Prerequisites
-
-In order to be able to use the golang image from inside nokia network we need to push the image in the local artifactory. This is due to networking/licensing issues with docker hub.
-
-```shell
-docker buildx build --platform linux/amd64 --push -t ni-bbd-container-apps-local.artifactory-espoo1.int.net.nokia.com/mirror/golang:1.21-alpine - < golang.Dockerfile
-```
 
 If you don't have the required development environment you can also build using docker (BuildKit is required, see below). Use the following command inside the project's root folder:
 

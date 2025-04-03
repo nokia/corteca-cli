@@ -37,6 +37,10 @@ const (
 	INDENTATION         = 4
 )
 
+type TemplateField struct {
+	RawTemplate string `yaml:"rawTemplate"`
+}
+
 type BuildOptions struct {
 	OutputType  string            `yaml:"outputType"`
 	DebugMode   bool              `yaml:"debug"`
@@ -45,15 +49,10 @@ type BuildOptions struct {
 }
 
 type AppSettings struct {
-	Lang         string            `yaml:"lang"`
-	Title        string            `yaml:"title"`
 	Name         string            `yaml:"name"`
 	Author       string            `yaml:"author"`
-	Description  string            `yaml:"description"`
 	Version      string            `yaml:"version"`
-	FQDN         string            `yaml:"fqdn"`
 	DUID         string            `yaml:"duid"`
-	Options      map[string]any    `yaml:"options"`
 	Dependencies Dependencies      `yaml:"dependencies"`
 	Env          map[string]string `yaml:"env"`
 	Entrypoint   string            `yaml:"entrypoint"`
@@ -71,11 +70,6 @@ type ArchitectureSettings struct {
 
 type ArchitecturesMap map[string]ArchitectureSettings
 
-type ToolchainSettings struct {
-	Image         string           `yaml:"image"`
-	Architectures ArchitecturesMap `yaml:"architectures"`
-}
-
 type CrossCompileConfig struct {
 	Enabled bool     `yaml:"enabled"`
 	Image   string   `yaml:"image"`
@@ -83,11 +77,28 @@ type CrossCompileConfig struct {
 }
 
 type BuildSettings struct {
-	Toolchains         ToolchainSettings  `yaml:"toolchains"`
-	Default            string             `yaml:"default,omitempty"`
-	Options            BuildOptions       `yaml:"options"`
-	CrossCompile       CrossCompileConfig `yaml:"crossCompile"`
-	DockerFileTemplate string             `yaml:"dockerFileTemplate,omitempty"`
+	Architectures ArchitecturesMap   `yaml:"architectures"`
+	Default       string             `yaml:"default,omitempty"`
+	Options       BuildOptions       `yaml:"options"`
+	CrossCompile  CrossCompileConfig `yaml:"crossCompile"`
+}
+
+var CmdContext struct {
+	App            *AppSettings      `yaml:"app,omitempty"`
+	Arch           string            `yaml:"arch,omitempty"`
+	BuildArtifacts map[string]string `yaml:"buildArtifacts,omitempty"`
+	Device         struct {
+		DeployDevice `yaml:",omitempty,inline"`
+		Name         string `yaml:"name,omitempty"`
+	} `yaml:"device,omitempty"`
+	Publish struct {
+		PublishTarget `yaml:",omitempty,inline"`
+		Name          string `yaml:"name,omitempty"`
+	} `yaml:"publish,omitempty"`
+	Platform      string            `yaml:"platform,omitempty"`
+	Build         *BuildSettings    `yaml:"build,omitempty"`
+	BuildArtifact string            `yaml:"buildArtifact,omitempty"`
+	Env           map[string]string `yaml:"env,omitempty"`
 }
 
 type PublishMethod int
@@ -117,10 +128,80 @@ const (
 
 var cmdRegularExpression *regexp.Regexp
 var regexKeyValue *regexp.Regexp
+var exprRegex *regexp.Regexp
 
 func init() {
 	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
 	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
+	exprRegex = regexp.MustCompile(`\${\s*(.*?)\s*}`)
+	populateEnvVars()
+}
+
+func populateEnvVars() {
+	CmdContext.Env = make(map[string]string)
+	envVars := os.Environ()
+
+	for _, envVar := range envVars {
+		parts := strings.SplitN(envVar, "=", 2)
+		if len(parts) == 2 {
+			CmdContext.Env[parts[0]] = parts[1]
+		}
+	}
+}
+
+// encode TemplateField to YAML data
+func (t TemplateField) MarshalYAML() (interface{}, error) {
+	return t.RawTemplate, nil
+}
+
+// decode YAML data into TemplateField
+func (t *TemplateField) UnmarshalYAML(data *yaml.Node) error {
+	if data.Kind != yaml.ScalarNode {
+		return errors.New("wrong value type")
+	}
+
+	t.RawTemplate = data.Value
+
+	return nil
+}
+
+func evaluateExpressionFunc(visited []string, context any) func(string) string {
+	if visited == nil {
+		visited = make([]string, 0, 2)
+	}
+	return func(expr string) string {
+		key := exprRegex.FindStringSubmatch(expr)[1]
+
+		for i := range visited {
+			if key == visited[i] {
+				fmt.Printf("Warning: circular expression dependency detected for field: %s\n", key)
+				return ""
+			}
+		}
+
+		value, err := ReadField(context, key)
+
+		if err != nil {
+			fmt.Printf("Warning: could not read field '%s' with error: %v\n", key, err.Error())
+			return ""
+		}
+
+		switch value.(type) {
+		case TemplateField:
+			visited = append(visited, key)
+			return generateExpressions(value.(TemplateField).RawTemplate, visited, context)
+		default:
+			return fmt.Sprintf("%v", value)
+		}
+	}
+}
+
+func generateExpressions(input string, visited []string, context any) string {
+	return exprRegex.ReplaceAllStringFunc(input, evaluateExpressionFunc(visited, context))
+}
+
+func (t TemplateField) String() string {
+	return generateExpressions(t.RawTemplate, nil, CmdContext)
 }
 
 func (m PublishMethod) MarshalYAML() (interface{}, error) {
@@ -171,11 +252,13 @@ func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
 }
 
 type Endpoint struct {
-	Addr           string `yaml:"addr,omitempty"`
-	Auth           string `yaml:"auth,omitempty"`
-	Password2      string `yaml:"password2,omitempty"`
-	PrivateKeyFile string `yaml:"privateKeyFile,omitempty"`
-	Token          string `yaml:"token,omitempty"`
+	Addr           TemplateField `yaml:"addr,omitempty"`
+	Auth           string        `yaml:"auth,omitempty"`
+	Username       TemplateField `yaml:"username,omitempty"`
+	Password       TemplateField `yaml:"password,omitempty"`
+	Password2      TemplateField `yaml:"password2,omitempty"`
+	PrivateKeyFile TemplateField `yaml:"privateKeyFile,omitempty"`
+	Token          TemplateField `yaml:"token,omitempty"`
 }
 
 type PublishTarget struct {
@@ -185,11 +268,11 @@ type PublishTarget struct {
 }
 
 type SequenceCmd struct {
-	Cmd           string `yaml:"cmd,omitempty"`
-	Delay         uint   `yaml:"delay,omitempty"`
-	Retries       uint   `yaml:"retries,omitempty"`
-	Input         string `yaml:"input,omitempty"`
-	IgnoreFailure bool   `yaml:"ignoreFailure,omitempty"`
+	Cmd           TemplateField `yaml:"cmd,omitempty"`
+	Delay         uint          `yaml:"delay,omitempty"`
+	Retries       uint          `yaml:"retries,omitempty"`
+	Input         TemplateField `yaml:"input,omitempty"`
+	IgnoreFailure bool          `yaml:"ignoreFailure,omitempty"`
 }
 
 type DownloadSource struct {
@@ -278,10 +361,10 @@ func findRefToSequence(seqCmd string) (string, bool) {
 }
 
 func executeCommand(cmd SequenceCmd, c *Settings, context any, executeCmdFunc ExecuteCmdFunc) error {
-	if seqName, found := findRefToSequence(cmd.Cmd); found {
+	if seqName, found := findRefToSequence(cmd.Cmd.String()); found {
 		return c.ExecuteSequence(seqName, context, executeCmdFunc)
 	} else {
-		cmdStr, err := templating.RenderTemplateString(cmd.Cmd, context)
+		cmdStr, err := templating.RenderTemplateString(cmd.Cmd.String(), context)
 		if err != nil {
 			if _, ok := err.(template.ExecError); ok {
 				return fmt.Errorf("error rendering cmd content: %s", err.Error())
@@ -295,14 +378,9 @@ func executeCommand(cmd SequenceCmd, c *Settings, context any, executeCmdFunc Ex
 
 func NewConfiguration() Settings {
 	return Settings{
-		App: AppSettings{
-			Options: map[string]any{},
-		},
+		App: AppSettings{},
 		Build: BuildSettings{
-			Toolchains: ToolchainSettings{
-				Image:         "",
-				Architectures: make(ArchitecturesMap),
-			},
+			Architectures: make(ArchitecturesMap),
 		},
 		Publish:   make(DictType[PublishTarget]),
 		Devices:   make(DictType[DeployDevice]),
@@ -422,7 +500,7 @@ func (conf *Settings) GetSuggestions(fieldpath string) []string {
 	return suggestions
 }
 
-func (conf Settings) ReadField(fieldPath string) (any, error) {
+func ReadField(conf any, fieldPath string) (any, error) {
 	keySequence := strings.Split(fieldPath, ".")
 	field := reflect.ValueOf(conf)
 	for index, key := range keySequence {
@@ -490,7 +568,11 @@ func writeValueHelper(container reflect.Value, fieldPath string, value string, a
 			if !field.IsValid() {
 				panic(fmt.Errorf(INVALID_FIELD, key))
 			}
-			field.Set(writeValueHelper(field, restpath, value, append))
+			value := writeValueHelper(field, restpath, value, append)
+			if field.Kind() == reflect.Ptr {
+				value = value.Addr()
+			}
+			field.Set(value)
 
 		case reflect.Map:
 			field := container.MapIndex(reflect.ValueOf(key))
@@ -511,7 +593,11 @@ func writeValueHelper(container reflect.Value, fieldPath string, value string, a
 			if i < 0 || i >= container.Len() {
 				panic(fmt.Errorf("index %d out of range", i))
 			}
-			container.Index(i).Set(writeValueHelper(container.Index(i), restpath, value, append))
+			value := writeValueHelper(container.Index(i), restpath, value, append)
+			if container.Index(i).Kind() == reflect.Ptr {
+				value = value.Addr()
+			}
+			container.Index(i).Set(value)
 
 		default:
 			panic(fmt.Errorf("cannot address element of type '%s' with key '%s'", container.Kind().String(), key))
@@ -633,14 +719,6 @@ func (conf *Settings) WriteConfiguration(dir string, deltaBase *Settings) error 
 // get available templates
 const TemplateInfoFile string = ".template-info.yaml"
 
-type TemplateCustomOption struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Type        string   `yaml:"type"`
-	Default     any      `yaml:"default"`
-	Values      []string `yaml:"values,omitempty"`
-}
-
 type TemplateInfo struct {
 	Name         string `yaml:"name"`
 	Description  string `yaml:"description"`
@@ -650,7 +728,7 @@ type TemplateInfo struct {
 	} `yaml:"dependencies"`
 	Path       string            `yaml:"-"`
 	RegenFiles map[string]string `yaml:"regenFiles"`
-	Options    []TemplateCustomOption
+	Base       string            `yaml:"base,omitempty"`
 }
 
 const (
@@ -685,11 +763,44 @@ func GetAvailableTemplates(list map[string]TemplateInfo, templatesDir string) er
 	return nil
 }
 
-func GenerateTemplate(fs afero.Fs, info TemplateInfo, destFolder string, context any) error {
+func GenerateTemplate(fs afero.Fs, info TemplateInfo, destFolder string, context any, templates map[string]TemplateInfo, visited []string, configTemplateField map[string]string) error {
+	if visited == nil {
+		visited = make([]string, 0, 2)
+	}
+
+	if info.Base != "" {
+		for _, v := range visited {
+			if v == info.Base {
+				return fmt.Errorf("circular dependency detected: %s", info.Base)
+			}
+		}
+
+		if baseTempl, exists := templates[info.Base]; exists {
+			visited = append(visited, info.Base)
+			err := GenerateTemplate(fs, baseTempl, destFolder, context, templates, visited, configTemplateField)
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("base template not found: %s", info.Base)
+		}
+	}
+
+	for templFile, destFile := range info.RegenFiles {
+		templPath := filepath.Join(info.Path, templFile)
+
+		if _, err := os.Stat(templPath); os.IsNotExist(err) {
+			fmt.Printf("warning: template file '%s' does not exist in '%s' template folder\n", templFile, info.Name)
+		}
+
+		configTemplateField[templFile] = destFile
+	}
+
 	fileList, err := getFileList(fs, info.Path)
 	if err != nil {
 		return err
 	}
+
 	for _, path := range fileList {
 		if filepath.Base(path) == TemplateInfoFile {
 			continue
@@ -704,6 +815,7 @@ func GenerateTemplate(fs afero.Fs, info TemplateInfo, destFolder string, context
 			return err
 		}
 	}
+
 	return nil
 }
 

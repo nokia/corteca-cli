@@ -1,0 +1,16 @@
+name: corteca-cli
+version: ${VERSION}
+description: Corteca Developer Toolkit cli
+vendor: Nokia
+maintainer: Nokia
+homepage: https://nokia.com
+arch: ${GOARCH}
+contents:
+  - src: ${DESTDIR}/etc
+    dst: /etc
+  - src: ${DESTDIR}/opt
+    dst: /opt
+  - src: ${DESTDIR}/usr
+    dst: /usr
+depends:
+  - docker.io | docker-ce | podman-docker

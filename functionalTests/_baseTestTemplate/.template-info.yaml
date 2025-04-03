@@ -1,0 +1,4 @@
+name: _baseTestTemplate
+description: "Base template for test application"
+regenFiles:
+  .corteca/test.template: test

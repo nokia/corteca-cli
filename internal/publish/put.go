@@ -5,6 +5,7 @@
 package publish
 
 import (
+	"corteca/internal/configuration"
 	"corteca/internal/tui"
 	"errors"
 	"fmt"
@@ -80,43 +81,49 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	return nil
 }
 
-func AuthenticateHttp(addr, authType, token string) (*url.URL, string, error) {
+func AuthenticateHttp(endpoint configuration.Endpoint) (*url.URL, error) {
 
-	u, err := url.Parse(addr)
+	u, err := url.Parse(endpoint.Addr.String())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
-	authType = strings.ToLower(authType)
+	authType := strings.ToLower(endpoint.Auth)
 	switch authType {
 	case authHttpBasicName:
 
-		username := u.User.Username()
+		username := endpoint.Username.String()
+		password := endpoint.Password.String()
+
+		// Check for username in .yaml config
 		if username == "" {
+			// Prompt for username
 			username, err = tui.PromptForValue("Enter username", "")
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
 		}
 
-		password, ok := u.User.Password()
-		if !ok {
+		// Check for password in config
+		if password == "" {
+			// Prompt for password
 			password, err = tui.PromptForPassword("Enter password")
 			if err != nil {
-				return nil, "", err
+				return nil, err
+
 			}
 		}
 
 		u.User = url.UserPassword(username, password)
 
 	case authHttpBearerName:
-		if token == "" {
-			return nil, "", errors.New("no bearer token present in configuration even though HTTP Bearer authentication has been requested")
+		if endpoint.Token.String() == "" {
+			return nil, errors.New("no bearer token present in configuration even though HTTP Bearer authentication has been requested")
 		}
 	case authHttpDigestName:
 		// TODO: implement
-		return nil, "", errors.New("digest HTTP authentication not implemented yet")
+		return nil, errors.New("digest HTTP authentication not implemented yet")
 	}
 
-	return u, token, nil
+	return u, nil
 }

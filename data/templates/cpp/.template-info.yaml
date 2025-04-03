@@ -1,10 +1,6 @@
 name: "cpp"
 description: "An application template for the C++ language."
 dependencies:
-  compile: [ g++ ]
+  compile: [ g++, make ]
   runtime: [ libstdc++, json-c ]
-regenFiles:
-  .corteca/ADF.template: ADF
-  .corteca/Dockerfile.template: Dockerfile
-options:
-      
+base: _base

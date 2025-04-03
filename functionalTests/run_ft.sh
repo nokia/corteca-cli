@@ -22,6 +22,10 @@ for param in "${testParams[@]}"; do
         -v "./dist/packages:/dist/" \
         "${img}" \
         /bin/bash -c "/ft/functional_tests.sh ${img} ${pkg}"
+    if [ $? -ne 0 ]; then
+        echo "Functional Tests execution failed for ${img} ${pkg}."
+        exit 1
+    fi
 done
 
 # step 2; run host-based tests (to be containerized)

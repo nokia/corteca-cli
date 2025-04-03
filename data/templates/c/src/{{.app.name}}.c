@@ -3,7 +3,7 @@
 #include <time.h>
 
 /*
-    {{ .app.title }}
+    {{ .app.name }}
     author: {{ .app.author }}
 */
 
@@ -11,7 +11,7 @@
 int main()
 {
 
-   printf("Hello from %s\n", "{{.app.title}}");
+   printf("Hello from %s\n", "{{.app.name}}");
 
    for (;;)
    {

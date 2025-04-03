@@ -1,9 +1,6 @@
 name: "c"
 description: "An application template for the C language."
 dependencies:
-  compile: [ gcc ]
+  compile: [ gcc, make, g++ ]
   runtime: [ json-c ]
-regenFiles:
-  .corteca/ADF.template: ADF
-  .corteca/Dockerfile.template: Dockerfile
-options:
+base: _base

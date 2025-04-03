@@ -1,7 +1,3 @@
-// Copyright 2024 Nokia
-// Licensed under the BSD 3-Clause License.
-// SPDX-License-Identifier: BSD-3-Clause
-
 package publish
 
 import (
@@ -29,7 +25,7 @@ func PushImage(imagePath string, registryURL *url.URL, token, tag string, withPr
 	extractedOCIName := filepath.Base(extractedImagePath)
 
 	if err := fsutil.ExtractTarball(imagePath, extractedImagePath); err != nil {
-		fmt.Errorf("failed to extract OCI image: %w", err)
+		return fmt.Errorf("failed to extract OCI image: %w", err)
 	}
 
 	versionRef, err := name.NewTag(fmt.Sprintf("%s%s/%s", registryURL.Host, registryURL.Path, tag))
@@ -86,7 +82,7 @@ func PushImage(imagePath string, registryURL *url.URL, token, tag string, withPr
 	}
 
 	if err := fsutil.RemoveFilesFromFolder(distDir, []string{extractedOCIName}); err != nil {
-		fmt.Errorf("failed to clean up extracted files: %w", err)
+		return fmt.Errorf("failed to clean up extracted files: %w", err)
 	}
 	tui.DisplaySuccessMsg(fmt.Sprintf("Pushed image '%v' as '%v'\n", imagePath, versionRef.Name()))
 	return nil
@@ -114,11 +110,12 @@ func getAuthenticator(registryURL *url.URL, token string) (authn.Authenticator, 
 			Token: token,
 		}, nil
 	} else {
+		// registryURL should always include a valid credentials or authentication token
 		password, _ := registryURL.User.Password()
-		return &authn.Basic{
+		return authn.FromConfig(authn.AuthConfig{
 			Username: registryURL.User.Username(),
 			Password: password,
-		}, nil
+		}), nil
 	}
 }
 

@@ -1,13 +1,9 @@
 ARG GO_VERSION=1.21
-ARG MIRROR_REGISTRY
 
-FROM ${MIRROR_REGISTRY}golang:${GO_VERSION}-alpine AS builder-image
+FROM golang:${GO_VERSION}-alpine AS builder-image
 RUN apk update && apk add \
     binutils \
     make \
-    rpm \
-    ruby \
-    ruby-dev \
     gcc \
     musl-dev \
     tar \
@@ -16,7 +12,8 @@ RUN apk update && apk add \
     coreutils \
     zip \
     git \
-    && gem install fpm
+    gettext
+RUN go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.40.0
 
 FROM builder-image AS go-test-coverage-stage
 WORKDIR /test-coverage

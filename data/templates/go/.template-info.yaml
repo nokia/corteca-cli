@@ -1,10 +1,6 @@
 name: "go"
 description: "An application template for the Go language."
 dependencies:
-  compile: [ go ]
+  compile: [ go, make ]
   runtime: [ json-c ]
-regenFiles:
-  .corteca/ADF.template: ADF
-  .corteca/Dockerfile.template: Dockerfile
-options:
-      
+base: _base

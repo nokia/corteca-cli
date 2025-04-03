@@ -35,17 +35,10 @@ func TestReadField(t *testing.T) {
 	// Mock Settings object
 	conf := &Settings{
 		App: AppSettings{
-			Lang:        "go",
-			Title:       "My App",
-			Name:        "my_app",
-			Author:      "Jane Doe",
-			Description: "A sample app",
-			Version:     "1.0.0",
-			FQDN:        "domain.example.com",
-			DUID:        "50e02eca-5e37-5365-8d95-9ec69e2512f7",
-			Options: map[string]any{
-				"option1": "value1",
-			},
+			Name:    "my_app",
+			Author:  "Jane Doe",
+			Version: "1.0.0",
+			DUID:    "50e02eca-5e37-5365-8d95-9ec69e2512f7",
 		},
 	}
 
@@ -56,18 +49,6 @@ func TestReadField(t *testing.T) {
 		wantOutput any
 	}{
 		{
-			name:       "ReadTopLevelField",
-			fieldPath:  "app.lang",
-			wantErr:    false,
-			wantOutput: "go",
-		},
-		{
-			name:       "ReadMapField",
-			fieldPath:  "app.options",
-			wantErr:    false,
-			wantOutput: map[string]any{"option1": "value1"},
-		},
-		{
 			name:      "InvalidFieldPath",
 			fieldPath: "app.nonExistent",
 			wantErr:   true,
@@ -76,7 +57,7 @@ func TestReadField(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			value, err := conf.ReadField(tt.fieldPath)
+			value, err := ReadField(conf, tt.fieldPath)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("ReadField() error = %v, wantErr %v", err, tt.wantErr)
@@ -268,27 +249,27 @@ func TestFieldByEncodingName(t *testing.T) {
 	}
 }
 
+func NewTemplateField(tmpl string) TemplateField {
+	retVal := TemplateField{
+		RawTemplate: tmpl,
+	}
+	return retVal
+}
+
 func TestWriteField(t *testing.T) {
 	// Mock Settings object
 	newConf := func() *Settings {
 		return &Settings{
 			App: AppSettings{
-				Lang:        "go",
-				Title:       "My App",
-				Name:        "my_app",
-				Author:      "Jane Doe",
-				Description: "A sample app",
-				Version:     "1.0.0",
-				FQDN:        "domain.example.com",
-				DUID:        "50e02eca-5e37-5365-8d95-9ec69e2512f7",
-				Options: map[string]any{
-					"option1": "value1",
-				},
+				Name:    "my_app",
+				Author:  "Jane Doe",
+				Version: "1.0.0",
+				DUID:    "50e02eca-5e37-5365-8d95-9ec69e2512f7",
 			},
 			Publish: map[string]PublishTarget{
 				"local": {
 					Endpoint: Endpoint{
-						Addr: "http://0.0.0.0:8080",
+						Addr: NewTemplateField("http://0.0.0.0:8080"),
 					},
 				},
 			},
@@ -304,12 +285,6 @@ func TestWriteField(t *testing.T) {
 		append    bool
 		actual    func(c *Settings) any
 	}{
-		{
-			name:      "TestWritePlainStructField",
-			fieldPath: "app.lang",
-			value:     "python",
-			actual:    func(c *Settings) any { return c.App.Lang },
-		},
 		{
 			name:      "TestWritePlainMapField",
 			fieldPath: "publish.local.addr",
@@ -327,12 +302,6 @@ func TestWriteField(t *testing.T) {
 			fieldPath: "app.env.foo",
 			value:     "",
 			wantErr:   true,
-		},
-		{
-			name:      "TestWriteComplexStructField",
-			fieldPath: "app.options",
-			value:     "{foo: {bar: zed}}",
-			actual:    func(c *Settings) any { return c.App.Options },
 		},
 		{
 			name:      "TestAppendSliceField",
@@ -380,6 +349,30 @@ func TestWriteField(t *testing.T) {
 	}
 }
 
+func TestTemplateFieldRender(t *testing.T) {
+	CmdContext.Publish.PublishTarget.PublicURL = "MyUrl"
+	CmdContext.Publish.PublishTarget.Auth = "MyAuth"
+	CmdContext.Publish.PublishTarget.Token = NewTemplateField("!${ .publish.publicURL }!${ .publish.auth }!")
+	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ .publish.token }-")
+
+	expectedValue := "-!MyUrl!MyAuth!-"
+	eval := CmdContext.Publish.PublishTarget.Addr.String()
+	if eval != expectedValue {
+		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
+	}
+}
+
+func TestTemplateFieldRenderWithCircuralDependency(t *testing.T) {
+	CmdContext.Publish.PublishTarget.Token = NewTemplateField("${ .publish.addr }")
+	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("${ .publish.token }")
+
+	eval := CmdContext.Publish.PublishTarget.Addr.String()
+
+	if eval != "" {
+		t.Errorf("Expected empty string - Actual: %s", eval)
+	}
+}
+
 func TestGetSuggestions(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -397,18 +390,16 @@ func TestGetSuggestions(t *testing.T) {
 		{
 			path: "build.",
 			suggestions: []string{
+				"build.architectures",
 				"build.crossCompile",
 				"build.default",
-				"build.dockerFileTemplate",
 				"build.options",
-				"build.toolchains",
 			},
 		},
 		{
 			path: "build.d",
 			suggestions: []string{
 				"build.default",
-				"build.dockerFileTemplate",
 			},
 		},
 		{
@@ -427,6 +418,7 @@ func TestGetSuggestions(t *testing.T) {
 			},
 		},
 	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			config := NewConfiguration()
