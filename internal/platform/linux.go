@@ -12,6 +12,8 @@ import (
 	"path/filepath"
 )
 
+const DefaultSSHLog = "/dev/null"
+
 func SetConfigPaths() (string, string) {
 	homeDir, _ := os.UserHomeDir()
 	systemConfigRoot := filepath.Join("/", "etc", "corteca")
