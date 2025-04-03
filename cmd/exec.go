@@ -3,6 +3,7 @@ package cmd
 import (
 	"corteca/internal/configuration"
 	"corteca/internal/device"
+	"corteca/internal/platform"
 	"fmt"
 	"strings"
 
@@ -30,7 +31,7 @@ func init() {
 		return []string{"tar.gz, tar"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(execCmd)
-	execCmd.PersistentFlags().StringVar(&sshLogging, "ssh-log", "/dev/null", "Specify where SSH logs will be stored")
+	execCmd.PersistentFlags().StringVar(&sshLogging, "ssh-log", platform.DefaultSSHLog, "Specify where SSH logs will be stored")
 	execCmd.PersistentFlags().StringVar(&publishTargetName, "publish", "", "Publish application artifact to specified target")
 	execCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
 }
