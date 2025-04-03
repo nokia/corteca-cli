@@ -920,6 +920,6 @@ func ReadYamlInto(value interface{}, in io.Reader) error {
 }
 
 func isRegenFile(path string, info TemplateInfo) bool {
-	_, exists := info.RegenFiles[path]
+	_, exists := info.RegenFiles[filepath.ToSlash(path)]
 	return exists
 }
