@@ -55,7 +55,7 @@ type AppSettings struct {
 	DUID         string            `yaml:"duid"`
 	Dependencies Dependencies      `yaml:"dependencies"`
 	Env          map[string]string `yaml:"env"`
-	Entrypoint   string            `yaml:"entrypoint"`
+	Entrypoint   []string          `yaml:"entrypoint"`
 	Runtime      specs.Spec        `yaml:"runtime"`
 }
 
@@ -378,7 +378,9 @@ func executeCommand(cmd SequenceCmd, c *Settings, context any, executeCmdFunc Ex
 
 func NewConfiguration() Settings {
 	return Settings{
-		App: AppSettings{},
+		App: AppSettings{
+			Entrypoint: make([]string, 0),
+		},
 		Build: BuildSettings{
 			Architectures: make(ArchitecturesMap),
 		},

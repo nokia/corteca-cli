@@ -41,4 +41,4 @@ FROM scratch AS final_stage
 ENV{{ range $key, $value := .app.env }} {{ $key }}={{ $value }} {{ end }}
 {{- end }}
 COPY --from=app_container / /
-ENTRYPOINT [ "{{ .app.entrypoint }}" ]
+ENTRYPOINT [ {{ range $index, $arg := .app.entrypoint }}{{- if $index }},{{ end }}"{{ . }}"{{ end }} ]

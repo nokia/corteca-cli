@@ -52,7 +52,7 @@ build:
         # rootfs, produces a compressed root filesystem as the build output;
         # oci, the output is an OCI image;
         # docker, for docker image output.
-        outputType: rootfs
+        outputType: oci
         # If true, generates a container with additional debugging tools
         # to facilitate troubleshooting during development.
         debug: false
@@ -64,7 +64,7 @@ build:
     crossCompile:
         enabled: true
         image: multiarch/qemu-user-static
-        args: ["--reset", "-p", "yes"]
+        args: [ "--reset", "-p", "yes" ]
 
 # Sequences
 # ---------------------------

@@ -5,5 +5,5 @@ Corteca Developer Toolkit facilitates bootstrapping and development of container
 It includes a Command Line Interface that enables you to interact with all the included tools from Linux or macOS shells, or Windows PowerShell or Command Prompt.
 
 ## Documentation
-
-Please consult the [BUILD Guide](doc/BUILD.md) for installation steps, and refer to the [USAGE Guide](doc/USAGE.md) for instructions on using the tool.
+Check [Getting Started](doc/GettingStarted.md) as a simple guide for application lifecycle (create, build, publish).
+Please consult the [BUILD Guide](doc/BUILD.md) for installation steps, and refer to the [USAGE Guide](doc/USAGE.md) for more detailed instructions on using the tool. 

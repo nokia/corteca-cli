@@ -116,7 +116,7 @@ func doBuildApp(selectedArchitecture string) {
 	case "oci":
 		assertOperation("packaging OCI", packager.PackageOCI(tmpBuildPath, distPath, selectedArchitecture, settings.Platform, tmprootfsTarGzPath, config.App))
 	case "rootfs":
-		assertOperation("packaging RootFS", packager.PackageRootFS(tmpBuildPath, projectRoot, distPath, selectedArchitecture, outputType, config.App))
+		assertOperation("packaging RootFS", packager.PackageRootFS(tmpBuildPath, projectRoot, distPath, selectedArchitecture, outputType, rootfsTarballName, config.App))
 	default:
 		failOperation(fmt.Sprintf("Unsupported output type: %q", outputType))
 	}

@@ -14,7 +14,7 @@ import (
 
 const (
 	runtimeConfigFile            = "config.json"
-	runtimeConfigTarFile		 = runtimeConfigFile + ".tar"
+	runtimeConfigTarFile         = runtimeConfigFile + ".tar"
 	adfFile                      = "ADF"
 	nokiaRuntimeConfigAnnotation = "com.nokia.runtime.config"
 	buildInfoPath                = "buildinfo.json"
@@ -55,9 +55,8 @@ func PackageOCI(buildDir, distPath, arch, platform, rootfsTarGzPath string, appS
 }
 
 // refers to legacy rootfs
-func PackageRootFS(buildDir, appDir, distPath, arch, outputType string, appSettings configuration.AppSettings) error {
+func PackageRootFS(buildDir, appDir, distPath, arch, outputType, rootfsTarball string, appSettings configuration.AppSettings) error {
 
-	rootfsTarGz := "rootfs.tar.gz" // Name for the rootfs archive
 	appPackage := fmt.Sprintf("%s-%s-%s-%s.tar.gz", appSettings.Name, appSettings.Version, arch, outputType)
 
 	_, err := fsutil.CopyFile(filepath.Join(appDir, adfFile), filepath.Join(buildDir, adfFile))
@@ -68,7 +67,7 @@ func PackageRootFS(buildDir, appDir, distPath, arch, outputType string, appSetti
 	if err != nil {
 		return fmt.Errorf("failed to change permissions to temp ADF '%s': %v", filepath.Join(buildDir, adfFile), err)
 	}
-	if err := fsutil.TarAndGzip(buildDir, filepath.Join(distPath, appPackage), []string{adfFile, rootfsTarGz}); err != nil {
+	if err := fsutil.TarAndGzip(buildDir, filepath.Join(distPath, appPackage), []string{adfFile, rootfsTarball}); err != nil {
 		return fmt.Errorf("failed to create final package tarball: %v", err)
 	}
 

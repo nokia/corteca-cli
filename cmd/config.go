@@ -56,7 +56,7 @@ var setCmd = &cobra.Command{
 corteca config set build.options.outputType=oci
 
 #Set beacon's configuration value 'addr'
-corteca config set devices.beacon.addr ssh//root:passwd@192.168.67.5
+corteca config set devices.beacon.addr ssh://root:passwd@192.168.67.5
 
 #Set global configuration 'bool' value for cross compilation 'enabled'
 corteca config --global set build.crossCompile.enabled false
@@ -73,7 +73,7 @@ var addCmd = &cobra.Command{
 	Short: "Add (append) a configuration value",
 	Long:  "Add (append) a configuration value to global or application's corteca.yaml file",
 	Example: `#Add to devices a device named 'beacon6' with its configuration fields
-corteca config add devices "{beacon6: {addr: ssh//root:passwd@192.168.67.5, password2: beaconpass}}"`,
+corteca config add devices "{beacon6: {addr: ssh://root:passwd@192.168.67.5, password2: beaconpass}}"`,
 	Args:              cobra.ExactArgs(2),
 	ValidArgsFunction: validConfigArgsFunc,
 	Run:               func(cmd *cobra.Command, args []string) { doSetConfigValue(args[0], args[1], true) },

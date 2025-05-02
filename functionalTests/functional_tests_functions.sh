@@ -121,6 +121,7 @@ test_build() {
         cd "${lang}"
         for arch in "${archs[@]}"; do
             begin_test "Testcase: corteca build ${lang} application for ${arch}"
+            ../dist/bin/corteca-linux-amd64-* -r ../data/ config set build.options.outputType rootfs
             ../dist/bin/corteca-linux-amd64-* -r ../data/ build ${arch}
             assert_test_equal "corteca build ${arch}" $? 0
         done

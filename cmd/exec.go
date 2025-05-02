@@ -5,9 +5,8 @@ import (
 	"corteca/internal/device"
 	"corteca/internal/platform"
 	"fmt"
-	"strings"
-
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -75,8 +74,8 @@ func doExecSequence(sequence, deviceName string) {
 	if !ok {
 		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", configuration.CmdContext.Arch))
 	}
-	configuration.CmdContext.BuildArtifact = filepath.Base(buildArtifact)
 
+	configuration.CmdContext.BuildArtifact = filepath.Base(buildArtifact)
 	configuration.CmdContext.Publish.PublishTarget = config.Publish[publishTargetName]
 	configuration.CmdContext.Publish.Name = publishTargetName
 	// publish build artifact(s) if a publish target has been specified in the deploy source

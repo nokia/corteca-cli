@@ -141,8 +141,8 @@ func validateAppSettings() error {
 	if config.App.DUID == "" {
 		return fmt.Errorf("DUID has not been generated successfully")
 	}
-	if config.App.Entrypoint == "" {
-		config.App.Entrypoint = filepath.ToSlash(filepath.Join("/bin", config.App.Name))
+	if len(config.App.Entrypoint) == 0 {
+		config.App.Entrypoint = append(config.App.Entrypoint, filepath.ToSlash(filepath.Join("/bin", config.App.Name)))
 	}
 	return nil
 }
@@ -230,6 +230,7 @@ func getAppNameFromArtifact(artifactPath string) string {
 
 func requireBuildArtifact() {
 	configuration.CmdContext.BuildArtifacts = make(map[string]string)
+
 	if specifiedArtifact != "" {
 		artifactArch, artifactType, artifactPath := splitSpecifiedArtifact(specifiedArtifact)
 		if _, err := os.Stat(artifactPath); errors.Is(err, os.ErrNotExist) {
@@ -250,7 +251,6 @@ func requireBuildArtifact() {
 		if skipLocalConfig || len(configuration.CmdContext.App.Name) == 0 {
 			configuration.CmdContext.App.Name = getAppNameFromArtifact(artifactPath)
 		}
-
 		return
 	}
 	requireProjectContext()
@@ -264,7 +264,7 @@ func requireBuildArtifact() {
 	ociFiles, _ := filepath.Glob(ociPattern)
 
 	// Compile a common regular expression to extract the CPU architecture from the filename.
-	commonArchRegex := regexp.MustCompile(fmt.Sprintf(`^%s-(?:[^-]+)-([^-.]+)-(rootfs|oci)\.(tar\.gz|tar)$`, regexp.QuoteMeta(config.App.Name)))
+	commonArchRegex := regexp.MustCompile(fmt.Sprintf(`^%s-%s-([^-]+)-(rootfs|oci)\.(tar\.gz|tar)$`, regexp.QuoteMeta(config.App.Name), regexp.QuoteMeta(config.App.Version)))
 	matchArchitectures(commonArchRegex, rootfsFiles, "rootfs")
 	matchArchitectures(commonArchRegex, ociFiles, "oci")
 

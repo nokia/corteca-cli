@@ -24,7 +24,7 @@ var elfMachineMap = map[string]elf.Machine{
 }
 
 func ValidateRootFS(rootfsPath string, targetArch string, appSettings configuration.AppSettings) error {
-	entrypointPath := filepath.Join(rootfsPath, appSettings.Entrypoint)
+	entrypointPath := filepath.Join(rootfsPath, appSettings.Entrypoint[0])
 	if err := validateEntrypoint(entrypointPath, targetArch); err != nil {
 		return err
 	}

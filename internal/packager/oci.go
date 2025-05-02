@@ -130,7 +130,7 @@ func updateImageConfig(img v1.Image, appSettings configuration.AppSettings, plat
 		return nil, fmt.Errorf("error getting image config file: %v", err)
 	}
 	// sets entrypoint, env, os and architecture
-	cfg.Config.Entrypoint = []string{appSettings.Entrypoint}
+	cfg.Config.Entrypoint = appSettings.Entrypoint
 	cfg.Config.Env = make([]string, 0, len(appSettings.Env))
 	for key, value := range appSettings.Env {
 		cfg.Config.Env = append(cfg.Config.Env, fmt.Sprintf("%s=%s", key, value))

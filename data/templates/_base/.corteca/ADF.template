@@ -12,7 +12,10 @@
   "hostname": "{{.app.name}}",
   "config": {
     "Cmd": [
-      "{{ .app.entrypoint }}"
+      {{- range $index, $arg := .app.entrypoint }}
+      {{- if $index }}, {{ end }}
+      "{{ $arg }}"
+      {{- end }}
     ]
   },
   "mounts": [

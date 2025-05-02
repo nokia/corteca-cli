@@ -88,7 +88,7 @@ func findFileInArtifact(artifactPath, targetName string) (io.Reader, func() erro
 		}
 
 		// Check if "blobs/<algorithm>/<encoded>" format matches header.Name
-		if header.Name == filepath.Join("blobs", algorithmName, targetHash) {
+		if header.Name == filepath.ToSlash(filepath.Join("blobs", algorithmName, targetHash)) {
 			return tarReader, func() error {
 				errGZF := gzf.Close()
 				errF := f.Close()
