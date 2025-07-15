@@ -49,9 +49,8 @@ unix-completions: default-corteca-binary
 
 
 windows-completions: default-corteca-binary
-	mkdir -p $(PS1_COMPLETION_DIR)
-	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion powershell > $(PS1_COMPLETION_DIR)/$(BINARY_NAME).ps1; \
-	
+	mkdir -p $(PS1_COMPLETION_MODULE_DIR)
+	$(BIN)/default-$(BINARY_NAME)-$(BUILD_ENV_GOOS)-$(BUILD_ENV_GOARCH)-$(VERSION) -r data/ completion powershell > $(PS1_COMPLETION_MODULE_DIR)/$(BINARY_NAME_CAPITALIZED).psm1; \
 
 install: $(GOOS)-target
 
@@ -96,7 +95,9 @@ msi: PKGNAME := $(BINARY_NAME)_$(VERSION)_$(GOARCH).msi
 msi: GUID := $(shell uuidgen)
 msi: INSTALLER_XML := corteca.wxs
 msi: DEST_REL_PATH := $(shell realpath --relative-to=$(CURRDIR) $(DESTDIR))
+msi: BINARY_NAME_CAPITALIZED := $(shell echo $(BINARY_NAME) | awk '{print toupper(substr($$0,1,1)) tolower(substr($$0,2))}')
 msi: PS1_COMPLETION_DIR := ${DESTDIR}/completions
+msi: PS1_COMPLETION_MODULE_DIR := $(PS1_COMPLETION_DIR)/$(BINARY_NAME_CAPITALIZED)
 msi: $(GOOS)-target | $(PACKAGES)
 msi: windows-completions
 	mv $(DESTDIR)/opt/corteca/$(BINARY_NAME) $(DESTDIR)/opt/corteca/$(BINARY_NAME).exe
