@@ -102,7 +102,7 @@ func doGetConfigValue(key string) {
 	}
 	assertOperation("retrieving config value", err)
 	enc := yaml.NewEncoder(os.Stdout)
-	enc.SetIndent(configuration.INDENTATION)
+	enc.SetIndent(configuration.YamlIndentation)
 	enc.Encode(field)
 }
 

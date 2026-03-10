@@ -30,20 +30,97 @@ import (
 )
 
 const (
-	ENCODING            = "yaml"
-	STRICT_DECODING_OPT = true
-	INDENTATION         = 4
+	ReflectNamesMetatag = "yaml"
+	StrictYamlParsing   = true
+	YamlIndentation     = 4
+	ConfigFileName      = "corteca.yaml"
 )
 
-type TemplateField struct {
-	RawTemplate string `yaml:"rawTemplate"`
+const (
+	PUBLISH_METHOD_UNDEFINED = iota
+	PUBLISH_METHOD_LISTEN
+	PUBLISH_METHOD_PUT
+	PUBLISH_METHOD_COPY
+	PUBLISH_METHOD_PUSH
+	PUBLISH_METHOD_REGISTRY
+)
+
+const (
+	publishMethodListenName   = "listen"
+	publishMethodPutName      = "put"
+	publishMethodCopyName     = "copy"
+	publishMethodPushName     = "push"
+	publishMethodRegistryName = "registry-v2"
+)
+
+type PublishMethod int
+
+func (m PublishMethod) MarshalYAML() (interface{}, error) {
+	var out []byte
+	var err error
+
+	switch m {
+	case PUBLISH_METHOD_LISTEN:
+		out, err = yaml.Marshal(publishMethodListenName)
+	case PUBLISH_METHOD_PUT:
+		out, err = yaml.Marshal(publishMethodPutName)
+	case PUBLISH_METHOD_COPY:
+		out, err = yaml.Marshal(publishMethodCopyName)
+	case PUBLISH_METHOD_PUSH:
+		out, err = yaml.Marshal(publishMethodPushName)
+	case PUBLISH_METHOD_REGISTRY:
+		out, err = yaml.Marshal(publishMethodRegistryName)
+	default:
+		out = nil
+		err = fmt.Errorf("invalid publish method (%v)", m)
+	}
+
+	return strings.TrimSpace(string(out)), err
+
 }
 
-type BuildOptions struct {
-	OutputType  string            `yaml:"outputType"`
-	DebugMode   bool              `yaml:"debug"`
-	SkipHostEnv bool              `yaml:"skipHostEnv,omitempty"`
-	Env         map[string]string `yaml:"env"`
+func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
+	var name string
+	if err := yaml.Unmarshal([]byte(data.Value), &name); err != nil {
+		return err
+	}
+	name = strings.ToLower(name)
+	switch name {
+	case publishMethodListenName:
+		*m = PUBLISH_METHOD_LISTEN
+	case publishMethodPutName:
+		*m = PUBLISH_METHOD_PUT
+	case publishMethodCopyName:
+		*m = PUBLISH_METHOD_COPY
+	case publishMethodPushName:
+		*m = PUBLISH_METHOD_PUSH
+	case publishMethodRegistryName:
+		*m = PUBLISH_METHOD_REGISTRY
+	default:
+		return fmt.Errorf("unrecognized publish method '%v'", name)
+	}
+	return nil
+}
+
+var regexKeyValue *regexp.Regexp
+var exprRegex *regexp.Regexp
+var cmdRegularExpression *regexp.Regexp
+
+func init() {
+	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
+	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
+	exprRegex = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
+	populateEnvVars()
+}
+
+// Top level object of application configuration settings
+type Settings struct {
+	App       AppSettings             `yaml:"app"`
+	Build     BuildSettings           `yaml:"build"`
+	Publish   DictType[PublishTarget] `yaml:"publish,omitempty"`
+	Devices   DictType[DeployDevice]  `yaml:"devices,omitempty"`
+	Sequences SequenceMap             `yaml:"sequences,omitempty"`
+	Templates map[string]string       `yaml:"templates"`
 }
 
 type AppSettings struct {
@@ -62,11 +139,25 @@ type Dependencies struct {
 	Runtime []string `yaml:"runtime"`
 }
 
+type BuildSettings struct {
+	Architectures ArchitecturesMap   `yaml:"architectures"`
+	Default       string             `yaml:"default,omitempty"`
+	Options       BuildOptions       `yaml:"options"`
+	CrossCompile  CrossCompileConfig `yaml:"crossCompile"`
+}
+
+type ArchitecturesMap map[string]ArchitectureSettings
+
 type ArchitectureSettings struct {
 	Platform string `yaml:"platform"`
 }
 
-type ArchitecturesMap map[string]ArchitectureSettings
+type BuildOptions struct {
+	OutputType  string            `yaml:"outputType"`
+	DebugMode   bool              `yaml:"debug"`
+	SkipHostEnv bool              `yaml:"skipHostEnv,omitempty"`
+	Env         map[string]string `yaml:"env"`
+}
 
 type CrossCompileConfig struct {
 	Enabled bool     `yaml:"enabled"`
@@ -74,11 +165,71 @@ type CrossCompileConfig struct {
 	Args    []string `yaml:"args"`
 }
 
-type BuildSettings struct {
-	Architectures ArchitecturesMap   `yaml:"architectures"`
-	Default       string             `yaml:"default,omitempty"`
-	Options       BuildOptions       `yaml:"options"`
-	CrossCompile  CrossCompileConfig `yaml:"crossCompile"`
+type PublishTarget struct {
+	Endpoint  `yaml:",omitempty,inline"`
+	Method    PublishMethod `yaml:"method,omitempty"`
+	PublicURL string        `yaml:"publicURL,omitempty"`
+}
+
+type DeployDevice struct {
+	Endpoint `yaml:",omitempty,inline"`
+}
+
+type Endpoint struct {
+	Addr           TemplateField `yaml:"addr,omitempty"`
+	Auth           string        `yaml:"auth,omitempty"`
+	Username       TemplateField `yaml:"username,omitempty"`
+	Password       TemplateField `yaml:"password,omitempty"`
+	Password2      TemplateField `yaml:"password2,omitempty"`
+	PrivateKeyFile TemplateField `yaml:"privateKeyFile,omitempty"`
+	Token          TemplateField `yaml:"token,omitempty"`
+	CwmpServerAddr string        `yaml:"cwmpServerAddr,omitempty"`
+	DeviceArch     string        `yaml:"deviceArch,omitempty"`
+}
+
+type TemplateField struct {
+	RawTemplate string `yaml:"rawTemplate"`
+}
+
+// encode TemplateField to YAML data
+func (t TemplateField) MarshalYAML() (interface{}, error) {
+	return t.RawTemplate, nil
+}
+
+// decode YAML data into TemplateField
+func (t *TemplateField) UnmarshalYAML(data *yaml.Node) error {
+	if data.Kind != yaml.ScalarNode {
+		return errors.New("wrong value type")
+	}
+	t.RawTemplate = data.Value
+	return nil
+}
+
+func (t TemplateField) String() string {
+	return generateExpressions(t.RawTemplate, nil, CmdContext)
+}
+
+type DictType[T any] map[string]T
+
+func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
+	if data.Kind != yaml.MappingNode {
+		return errors.New("wrong value type")
+	}
+	if *t == nil {
+		*t = make(DictType[T])
+	}
+	for i := 0; i < len(data.Content); i += 2 {
+		var alias string
+		if err := data.Content[i].Decode(&alias); err != nil {
+			return err
+		}
+		settings := (*t)[alias]
+		if err := data.Content[i+1].Decode(&settings); err != nil {
+			return err
+		}
+		(*t)[alias] = settings
+	}
+	return nil
 }
 
 var CmdContext struct {
@@ -99,42 +250,6 @@ var CmdContext struct {
 	Env           map[string]string `yaml:"env,omitempty"`
 }
 
-type PublishMethod int
-
-type AuthType int
-
-const (
-	PUBLISH_METHOD_UNDEFINED = iota
-	PUBLISH_METHOD_LISTEN
-	PUBLISH_METHOD_PUT
-	PUBLISH_METHOD_COPY
-	PUBLISH_METHOD_PUSH
-	PUBLISH_METHOD_REGISTRY
-)
-
-const (
-	publishMethodListenName   = "listen"
-	publishMethodPutName      = "put"
-	publishMethodCopyName     = "copy"
-	publishMethodPushName     = "push"
-	publishMethodRegistryName = "registry-v2"
-)
-
-const (
-	ConfigFileName = "corteca.yaml"
-)
-
-var regexKeyValue *regexp.Regexp
-var exprRegex *regexp.Regexp
-var cmdRegularExpression *regexp.Regexp
-
-func init() {
-	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
-	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
-	exprRegex = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
-	populateEnvVars()
-}
-
 func populateEnvVars() {
 	CmdContext.Env = make(map[string]string)
 	envVars := os.Environ()
@@ -145,22 +260,6 @@ func populateEnvVars() {
 			CmdContext.Env[parts[0]] = parts[1]
 		}
 	}
-}
-
-// encode TemplateField to YAML data
-func (t TemplateField) MarshalYAML() (interface{}, error) {
-	return t.RawTemplate, nil
-}
-
-// decode YAML data into TemplateField
-func (t *TemplateField) UnmarshalYAML(data *yaml.Node) error {
-	if data.Kind != yaml.ScalarNode {
-		return errors.New("wrong value type")
-	}
-
-	t.RawTemplate = data.Value
-
-	return nil
 }
 
 func evaluateExpressionFunc(visited []string, context any) func(string) string {
@@ -233,118 +332,6 @@ func generateExpressions(input string, visited []string, context any) string {
 	return exprRegex.ReplaceAllStringFunc(input, evaluateExpressionFunc(visited, context))
 }
 
-func (t TemplateField) String() string {
-	return generateExpressions(t.RawTemplate, nil, CmdContext)
-}
-
-func (m PublishMethod) MarshalYAML() (interface{}, error) {
-	var out []byte
-	var err error
-
-	switch m {
-	case PUBLISH_METHOD_LISTEN:
-		out, err = yaml.Marshal(publishMethodListenName)
-	case PUBLISH_METHOD_PUT:
-		out, err = yaml.Marshal(publishMethodPutName)
-	case PUBLISH_METHOD_COPY:
-		out, err = yaml.Marshal(publishMethodCopyName)
-	case PUBLISH_METHOD_PUSH:
-		out, err = yaml.Marshal(publishMethodPushName)
-	case PUBLISH_METHOD_REGISTRY:
-		out, err = yaml.Marshal(publishMethodRegistryName)
-	default:
-		out = nil
-		err = fmt.Errorf("invalid publish method (%v)", m)
-	}
-
-	return strings.TrimSpace(string(out)), err
-
-}
-
-func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
-	var name string
-	if err := yaml.Unmarshal([]byte(data.Value), &name); err != nil {
-		return err
-	}
-	name = strings.ToLower(name)
-	switch name {
-	case publishMethodListenName:
-		*m = PUBLISH_METHOD_LISTEN
-	case publishMethodPutName:
-		*m = PUBLISH_METHOD_PUT
-	case publishMethodCopyName:
-		*m = PUBLISH_METHOD_COPY
-	case publishMethodPushName:
-		*m = PUBLISH_METHOD_PUSH
-	case publishMethodRegistryName:
-		*m = PUBLISH_METHOD_REGISTRY
-	default:
-		return fmt.Errorf("unrecognized publish method '%v'", name)
-	}
-	return nil
-}
-
-type Endpoint struct {
-	Addr                      TemplateField `yaml:"addr,omitempty"`
-	Auth                      string        `yaml:"auth,omitempty"`
-	Username                  TemplateField `yaml:"username,omitempty"`
-	Password                  TemplateField `yaml:"password,omitempty"`
-	Password2                 TemplateField `yaml:"password2,omitempty"`
-	PrivateKeyFile            TemplateField `yaml:"privateKeyFile,omitempty"`
-	Token                     TemplateField `yaml:"token,omitempty"`
-	CwmpServerAddr            string        `yaml:"cwmpServerAddr,omitempty"`
-	DeviceArch                string        `yaml:"deviceArch,omitempty"`
-}
-
-type PublishTarget struct {
-	Endpoint  `yaml:",omitempty,inline"`
-	Method    PublishMethod `yaml:"method,omitempty"`
-	PublicURL string        `yaml:"publicURL,omitempty"`
-}
-
-type DownloadSource struct {
-	Url     string `yaml:"url,omitempty"`
-	Publish string `yaml:"publish,omitempty"`
-}
-
-type DeployDevice struct {
-	Endpoint `yaml:",omitempty,inline"`
-}
-
-type DictType[T any] map[string]T
-
-type Settings struct {
-	App       AppSettings             `yaml:"app"`
-	Build     BuildSettings           `yaml:"build"`
-	Publish   DictType[PublishTarget] `yaml:"publish,omitempty"`
-	Devices   DictType[DeployDevice]  `yaml:"devices,omitempty"`
-	Sequences SequenceMap             `yaml:"sequences,omitempty"`
-	Templates map[string]string       `yaml:"templates"`
-}
-
-// UnmarshalYAML for Publish and Devices
-func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
-	if data.Kind != yaml.MappingNode {
-		return errors.New("wrong value type")
-	}
-	if *t == nil {
-		*t = make(DictType[T])
-	}
-	for i := 0; i < len(data.Content); i += 2 {
-		var alias string
-		if err := data.Content[i].Decode(&alias); err != nil {
-			return err
-		}
-		settings := (*t)[alias]
-		if err := data.Content[i+1].Decode(&settings); err != nil {
-			return err
-		}
-
-		(*t)[alias] = settings
-	}
-	return nil
-}
-
 func NewConfiguration() Settings {
 	return Settings{
 		App: AppSettings{
@@ -382,7 +369,7 @@ func (conf *Settings) WriteToFile(path string) error {
 	}
 
 	enc := yaml.NewEncoder(out)
-	enc.SetIndent(INDENTATION)
+	enc.SetIndent(YamlIndentation)
 
 	if err = enc.Encode(conf); err != nil {
 		return errors.Join(err, out.Close())
@@ -679,7 +666,7 @@ func (conf *Settings) WriteConfiguration(dir string, deltaBase *Settings) error 
 		return err
 	}
 	enc := yaml.NewEncoder(out)
-	enc.SetIndent(INDENTATION)
+	enc.SetIndent(YamlIndentation)
 	if err = enc.Encode(delta); err != nil {
 		return errors.Join(err, out.Close())
 	}
@@ -878,7 +865,7 @@ func fieldNamesByEncodingPrefix(v reflect.Value, prefix, basePath string) []stri
 }
 
 func getFieldName(field reflect.StructField) string {
-	if tag, ok := field.Tag.Lookup(ENCODING); ok {
+	if tag, ok := field.Tag.Lookup(ReflectNamesMetatag); ok {
 		return strings.Split(tag, ",")[0]
 	}
 	return field.Name
@@ -886,7 +873,7 @@ func getFieldName(field reflect.StructField) string {
 
 func ReadYamlInto(value interface{}, in io.Reader) error {
 	dec := yaml.NewDecoder(in)
-	dec.KnownFields(STRICT_DECODING_OPT)
+	dec.KnownFields(StrictYamlParsing)
 	return dec.Decode(value)
 }
 
