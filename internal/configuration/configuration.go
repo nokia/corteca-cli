@@ -206,7 +206,7 @@ func (t *TemplateField) UnmarshalYAML(data *yaml.Node) error {
 }
 
 func (t TemplateField) String() string {
-	return generateExpressions(t.RawTemplate, nil, CmdContext)
+	return generateExpressions(t.RawTemplate, nil, GetCmdContext())
 }
 
 type DictType[T any] map[string]T
@@ -232,7 +232,9 @@ func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
 	return nil
 }
 
-var CmdContext struct {
+var commandContext CmdContext
+
+type CmdContext struct {
 	App            *AppSettings      `yaml:"app,omitempty"`
 	Arch           string            `yaml:"arch,omitempty"`
 	BuildArtifacts map[string]string `yaml:"buildArtifacts,omitempty"`
@@ -250,14 +252,22 @@ var CmdContext struct {
 	Env           map[string]string `yaml:"env,omitempty"`
 }
 
+func ResetContext() {
+	commandContext = CmdContext{}
+}
+
+func GetCmdContext() *CmdContext {
+	return &commandContext
+}
+
 func populateEnvVars() {
-	CmdContext.Env = make(map[string]string)
+	GetCmdContext().Env = make(map[string]string)
 	envVars := os.Environ()
 
 	for _, envVar := range envVars {
 		parts := strings.SplitN(envVar, "=", 2)
 		if len(parts) == 2 {
-			CmdContext.Env[parts[0]] = parts[1]
+			GetCmdContext().Env[parts[0]] = parts[1]
 		}
 	}
 }

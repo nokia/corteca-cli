@@ -97,10 +97,10 @@ func (d *CWMPDevice) GetProtocol() int {
 }
 
 func (d *CWMPDevice) DiscoverTargetCPUArch(dispatcher dispatcher.Dispatcher) (string, error) {
-	if configuration.CmdContext.Device.DeployDevice.DeviceArch == "" {
+	if configuration.GetCmdContext().Device.DeployDevice.DeviceArch == "" {
 		return "", fmt.Errorf("error discovering device architecture")
 	}
-	return configuration.CmdContext.Device.DeployDevice.DeviceArch, nil
+	return configuration.GetCmdContext().Device.DeployDevice.DeviceArch, nil
 }
 
 func (c *CWMPDevice) Connect() (dispatcher.Dispatcher, error) {
@@ -165,21 +165,21 @@ func (c *CWMPDevice) checkConnReqValues(u *url.URL) error {
 	}
 
 	user := u.User.Username()
-	if user == "" && configuration.CmdContext.Device.Username.String() == "" {
+	if user == "" && configuration.GetCmdContext().Device.Username.String() == "" {
 		return fmt.Errorf("connection request username: is empty")
 	} else if user != "" {
 		c.endpoint.Username.RawTemplate = user
 	} else {
-		c.endpoint.Username.RawTemplate = configuration.CmdContext.Device.Username.String()
+		c.endpoint.Username.RawTemplate = configuration.GetCmdContext().Device.Username.String()
 	}
 
 	pass, ok := u.User.Password()
-	if !ok && configuration.CmdContext.Device.Password.String() == "" {
+	if !ok && configuration.GetCmdContext().Device.Password.String() == "" {
 		return fmt.Errorf("connection request password: is empty")
 	} else if ok {
 		c.endpoint.Password.RawTemplate = pass
 	} else {
-		c.endpoint.Password.RawTemplate = configuration.CmdContext.Device.Password.String()
+		c.endpoint.Password.RawTemplate = configuration.GetCmdContext().Device.Password.String()
 	}
 
 	return nil
@@ -271,7 +271,7 @@ func (c *CWMPDevice) createResponseMessage(msg messages.Message) (response messa
 	switch msg.GetName() {
 	case "Inform":
 		inform := msg.(*messages.Inform)
-		configuration.CmdContext.Device.Addr = configuration.TemplateField{RawTemplate: inform.Params["Device.ManagementServer.ConnectionRequestURL"]}
+		configuration.GetCmdContext().Device.Addr = configuration.TemplateField{RawTemplate: inform.Params["Device.ManagementServer.ConnectionRequestURL"]}
 		informResponse := new(messages.InformResponse)
 		informResponse.ID = inform.ID
 		informResponse.MaxEnvelopes = 1

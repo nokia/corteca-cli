@@ -57,9 +57,9 @@ func TestInitServerFailure(t *testing.T) {
 }
 
 func resetConfig(u, p, a string) {
-	configuration.CmdContext.Device.Username = configuration.TemplateField{RawTemplate: u}
-	configuration.CmdContext.Device.Password = configuration.TemplateField{RawTemplate: p}
-	configuration.CmdContext.Device.Addr = configuration.TemplateField{RawTemplate: a}
+	configuration.GetCmdContext().Device.Username = configuration.TemplateField{RawTemplate: u}
+	configuration.GetCmdContext().Device.Password = configuration.TemplateField{RawTemplate: p}
+	configuration.GetCmdContext().Device.Addr = configuration.TemplateField{RawTemplate: a}
 }
 
 func mustURL(t *testing.T, s string) *url.URL {
@@ -368,9 +368,9 @@ func TestCreateResponseMessage(t *testing.T) {
 						FaultCode:   0,
 						FaultString: "No fault",
 					},
-					StartTime:            "15:48:32",
-					CompleteTime:         "16:48:32",
-					CommandKey: "commandKey",
+					StartTime:    "15:48:32",
+					CompleteTime: "16:48:32",
+					CommandKey:   "commandKey",
 				},
 			},
 		},

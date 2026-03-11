@@ -6,14 +6,14 @@ import (
 	"errors"
 	"os"
 	"testing"
-	
+
 	"github.com/stretchr/testify/assert"
 )
 
 // MockDispatcher simulates dispatcher.Dispatcher behavior
 type MockDispatcher struct {
-	Responses map[string]string
-	Failures  map[string]error
+	Responses   map[string]string
+	Failures    map[string]error
 	printFormat string
 }
 
@@ -32,7 +32,7 @@ func (m *MockDispatcher) ExecuteCommand(cmd any) (string, error) {
 }
 
 func (m *MockDispatcher) SetPrintFormat(format string) {
-    m.printFormat = format
+	m.printFormat = format
 }
 
 // --- Tests ---
@@ -131,27 +131,27 @@ func TestDiscoverTargetCPUArch(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                string
-		test_device			device.Device
-		expected_error 		error
-		expected_arch		string
-		addr				configuration.Endpoint
-		setup				func()
+		name           string
+		test_device    device.Device
+		expected_error error
+		expected_arch  string
+		addr           configuration.Endpoint
+		setup          func()
 	}{
 		{
-			name: "ssh device",
+			name:           "ssh device",
 			expected_error: nil,
-			expected_arch: "x86_64",
-			addr: configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "ssh://localhost:22"}},
-			setup: func(){},
+			expected_arch:  "x86_64",
+			addr:           configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "ssh://localhost:22"}},
+			setup:          func() {},
 		},
 		{
-			name: "cwmp device",
+			name:           "cwmp device",
 			expected_error: nil,
-			expected_arch: "armv7",
-			addr: configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "cwmp://192,168,1,1:7547"}},
+			expected_arch:  "armv7",
+			addr:           configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "cwmp://192,168,1,1:7547"}},
 			setup: func() {
-				configuration.CmdContext.Device.DeployDevice.DeviceArch = "armv7"
+				configuration.GetCmdContext().Device.DeployDevice.DeviceArch = "armv7"
 			},
 		},
 	}
@@ -172,31 +172,31 @@ func TestDiscoverTargetCPUArch_Error(t *testing.T) {
 			"uname -m": errors.New("command failed"),
 		},
 	}
-	
+
 	tests := []struct {
-		name                string
-		test_device			device.Device
-		expected_error 		string
-		expected_arch		string
-		addr				configuration.Endpoint
-		setup				func()
+		name           string
+		test_device    device.Device
+		expected_error string
+		expected_arch  string
+		addr           configuration.Endpoint
+		setup          func()
 	}{
 		{
-			name: "ssh device",
-			test_device: &device.SSHDevice{},
+			name:           "ssh device",
+			test_device:    &device.SSHDevice{},
 			expected_error: "failed to discover CPU architecture: command failed",
-			expected_arch: "",
-			addr: configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "ssh://localhost:22"}},
-			setup: func ()  {},
+			expected_arch:  "",
+			addr:           configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "ssh://localhost:22"}},
+			setup:          func() {},
 		},
 		{
-			name: "cwmp device",
-			test_device: &device.CWMPDevice{},
+			name:           "cwmp device",
+			test_device:    &device.CWMPDevice{},
 			expected_error: "error discovering device architecture",
-			expected_arch: "",
-			addr: configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "cwmp://localhost:22"}},
+			expected_arch:  "",
+			addr:           configuration.Endpoint{Addr: configuration.TemplateField{RawTemplate: "cwmp://localhost:22"}},
 			setup: func() {
-				configuration.CmdContext.Device.DeployDevice.DeviceArch = ""
+				configuration.GetCmdContext().Device.DeployDevice.DeviceArch = ""
 			},
 		},
 	}

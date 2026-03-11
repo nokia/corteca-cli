@@ -202,8 +202,8 @@ func requireProjectContext() {
 		failOperation("must be run inside a project context")
 		os.Exit(1)
 	}
-	configuration.CmdContext.App = &config.App
-	configuration.CmdContext.Build = &config.Build
+	configuration.GetCmdContext().App = &config.App
+	configuration.GetCmdContext().Build = &config.Build
 }
 
 func splitSpecifiedArtifact(specifiedArtifact string) (arch, imgType, path string) {
@@ -229,27 +229,27 @@ func getAppNameFromArtifact(artifactPath string) string {
 }
 
 func requireBuildArtifact() {
-	configuration.CmdContext.BuildArtifacts = make(map[string]string)
+	configuration.GetCmdContext().BuildArtifacts = make(map[string]string)
 
 	if specifiedArtifact != "" {
 		artifactArch, artifactType, artifactPath := splitSpecifiedArtifact(specifiedArtifact)
 		if _, err := os.Stat(artifactPath); errors.Is(err, os.ErrNotExist) {
 			failOperation(fmt.Sprintf("file %s not found", artifactPath))
 		}
-		configuration.CmdContext.BuildArtifacts[artifactArch+"-"+artifactType] = artifactPath
+		configuration.GetCmdContext().BuildArtifacts[artifactArch+"-"+artifactType] = artifactPath
 		distFolder = filepath.Dir(artifactPath)
-		configuration.CmdContext.Arch = artifactArch
+		configuration.GetCmdContext().Arch = artifactArch
 		// Set necessary build field for deployment
-		configuration.CmdContext.Build = &config.Build
-		configuration.CmdContext.Build.Options.OutputType = artifactType
+		configuration.GetCmdContext().Build = &config.Build
+		configuration.GetCmdContext().Build.Options.OutputType = artifactType
 		// Set necessary app fields for deployment
-		configuration.CmdContext.App = &config.App
+		configuration.GetCmdContext().App = &config.App
 
-		if skipLocalConfig || len(configuration.CmdContext.App.DUID) == 0 {
-			configuration.CmdContext.App.DUID = generateDUID(artifactPath)
+		if skipLocalConfig || len(configuration.GetCmdContext().App.DUID) == 0 {
+			configuration.GetCmdContext().App.DUID = generateDUID(artifactPath)
 		}
-		if skipLocalConfig || len(configuration.CmdContext.App.Name) == 0 {
-			configuration.CmdContext.App.Name = getAppNameFromArtifact(artifactPath)
+		if skipLocalConfig || len(configuration.GetCmdContext().App.Name) == 0 {
+			configuration.GetCmdContext().App.Name = getAppNameFromArtifact(artifactPath)
 		}
 		return
 	}
@@ -268,7 +268,7 @@ func requireBuildArtifact() {
 	matchArchitectures(commonArchRegex, rootfsFiles, "rootfs")
 	matchArchitectures(commonArchRegex, ociFiles, "oci")
 
-	if len(configuration.CmdContext.BuildArtifacts) == 0 {
+	if len(configuration.GetCmdContext().BuildArtifacts) == 0 {
 		failOperation("no build artifacts found")
 	}
 }
@@ -283,7 +283,7 @@ func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactTy
 			continue
 		}
 		cpuArch := matches[1]
-		if curArtifactName, ok := configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType]; ok {
+		if curArtifactName, ok := configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType]; ok {
 			curArtifactInfo, err := os.Stat(curArtifactName)
 			if err != nil {
 				failOperation(fmt.Sprintf("stating artifact %s failed: %v", curArtifactName, err))
@@ -296,13 +296,13 @@ func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactTy
 
 			// Update the selection if the new candidate is more recent and continue the loop
 			if distFileInfo.ModTime().After(curArtifactInfo.ModTime()) {
-				configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
+				configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType] = distFile
 			}
 
 			continue
 		}
-		configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
-		configuration.CmdContext.Arch = cpuArch
+		configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType] = distFile
+		configuration.GetCmdContext().Arch = cpuArch
 	}
 }
 

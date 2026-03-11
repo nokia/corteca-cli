@@ -56,10 +56,10 @@ func init() {
 func doPublishApp(targetName string, arch string, wait bool) {
 	requireBuildArtifact()
 	if specifiedArtifact != "" {
-		if arch != "" && configuration.CmdContext.Arch != arch {
-			fmt.Printf("Warning: differing architectures [%s,%s] were specified!\nPublishing %s...", arch, configuration.CmdContext.Arch, configuration.CmdContext.Arch)
+		if arch != "" && configuration.GetCmdContext().Arch != arch {
+			fmt.Printf("Warning: differing architectures [%s,%s] were specified!\nPublishing %s...", arch, configuration.GetCmdContext().Arch, configuration.GetCmdContext().Arch)
 		}
-		arch = configuration.CmdContext.Arch
+		arch = configuration.GetCmdContext().Arch
 	}
 
 	target, found := config.Publish[targetName]
@@ -147,7 +147,7 @@ func doPush(artifact string, url *url.URL, token string) {
 
 func getArtifact(arch, suffix string) (string, bool) {
 	artifactKey := fmt.Sprintf("%s-%s", arch, suffix)
-	artifactFilename, found := configuration.CmdContext.BuildArtifacts[artifactKey]
+	artifactFilename, found := configuration.GetCmdContext().BuildArtifacts[artifactKey]
 	return artifactFilename, found
 }
 

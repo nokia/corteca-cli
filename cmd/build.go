@@ -77,8 +77,8 @@ func doBuildApp(selectedArchitecture string) {
 
 	selectedArchitecture, settings := validateArchitecture(selectedArchitecture)
 	outputType := strings.ToLower(config.Build.Options.OutputType)
-	configuration.CmdContext.Arch = selectedArchitecture
-	configuration.CmdContext.Platform = settings.Platform
+	configuration.GetCmdContext().Arch = selectedArchitecture
+	configuration.GetCmdContext().Platform = settings.Platform
 	buildMetadata := generateBuildInfo(appVersion, config.App.Version)
 
 	// STEP 0: create necessary folders

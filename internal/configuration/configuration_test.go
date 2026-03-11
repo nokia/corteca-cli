@@ -350,53 +350,52 @@ func TestWriteField(t *testing.T) {
 }
 
 func TestTemplateFieldRender(t *testing.T) {
-	CmdContext.Publish.PublishTarget.PublicURL = "MyUrl"
-	CmdContext.Publish.PublishTarget.Auth = "MyAuth"
-	CmdContext.Publish.PublishTarget.Token = NewTemplateField("!${ .publish.publicURL }!${ \"prefix:\":.publish.auth }!")
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ .publish.token }-")
+	GetCmdContext().Publish.PublishTarget.PublicURL = "MyUrl"
+	GetCmdContext().Publish.PublishTarget.Auth = "MyAuth"
+	GetCmdContext().Publish.PublishTarget.Token = NewTemplateField("!${ .publish.publicURL }!${ \"prefix:\":.publish.auth }!")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("-${ .publish.token }-")
 
 	expectedValue := "-!MyUrl!prefix:MyAuth!-"
-	eval := CmdContext.Publish.PublishTarget.Addr.String()
+	eval := GetCmdContext().Publish.PublishTarget.Addr.String()
 	if eval != expectedValue {
 		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
 	}
 }
 
 func TestMapTemplateFieldRender(t *testing.T) {
-	CmdContext.Env = map[string]string{
+	GetCmdContext().Env = map[string]string{
 		"foo": "bar",
 		"zed": "buzz",
 	}
 
-	
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ .env }-")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("-${ .env }-")
 	expectedValue := []string{"-foo bar zed buzz-", "-zed buzz foo bar-"}
 
-	eval := CmdContext.Publish.PublishTarget.Addr.String()
+	eval := GetCmdContext().Publish.PublishTarget.Addr.String()
 	if eval != expectedValue[0] && eval != expectedValue[1] {
 		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
 	}
 
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix\":.env }-")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix\":.env }-")
 	expectedValue = []string{"-prefixfoo bar prefixzed buzz-", "-prefixzed buzz prefixfoo bar-"}
 
-	eval = CmdContext.Publish.PublishTarget.Addr.String()
+	eval = GetCmdContext().Publish.PublishTarget.Addr.String()
 	if eval != expectedValue[0] && eval != expectedValue[1] {
 		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
 	}
 
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix:\":.env:= }-")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix:\":.env:= }-")
 	expectedValue = []string{"-prefix:foo=bar prefix:zed=buzz-", "-prefix:zed=buzz prefix:foo=bar-"}
 
-	eval = CmdContext.Publish.PublishTarget.Addr.String()
+	eval = GetCmdContext().Publish.PublishTarget.Addr.String()
 	if eval != expectedValue[0] && eval != expectedValue[1] {
 		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
 	}
 
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix:\":.env:=:, }-")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("-${ \"prefix:\":.env:=:, }-")
 	expectedValue = []string{"-prefix:foo=bar,prefix:zed=buzz-", "-prefix:zed=buzz,prefix:foo=bar-"}
 
-	eval = CmdContext.Publish.PublishTarget.Addr.String()
+	eval = GetCmdContext().Publish.PublishTarget.Addr.String()
 	if eval != expectedValue[0] && eval != expectedValue[1] {
 		t.Errorf("Expected: '%s' - Actual: '%s'", expectedValue, eval)
 	}
@@ -404,15 +403,15 @@ func TestMapTemplateFieldRender(t *testing.T) {
 }
 
 func TestTemplateFieldRenderWithCircuralDependency(t *testing.T) {
-	CmdContext.Publish.PublishTarget.Token = NewTemplateField("${ .publish.addr }")
-	CmdContext.Publish.PublishTarget.Addr = NewTemplateField("${ .publish.token }")
+	GetCmdContext().Publish.PublishTarget.Token = NewTemplateField("${ .publish.addr }")
+	GetCmdContext().Publish.PublishTarget.Addr = NewTemplateField("${ .publish.token }")
 
 	defer func() {
 		if r := recover(); r == nil {
 			t.Errorf("Expected panic; got none")
 		}
 	}()
-	_ = CmdContext.Publish.PublishTarget.Addr.String()
+	_ = GetCmdContext().Publish.PublishTarget.Addr.String()
 }
 
 func TestGetSuggestions(t *testing.T) {

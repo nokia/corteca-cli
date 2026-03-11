@@ -31,10 +31,10 @@ func init() {
 
 func doRegenTemplates(destFolder, selectedArchitecture string) {
 	selectedArchitecture, settings := validateArchitecture(selectedArchitecture)
-	configuration.CmdContext.Arch = selectedArchitecture
-	configuration.CmdContext.Platform = settings.Platform
+	configuration.GetCmdContext().Arch = selectedArchitecture
+	configuration.GetCmdContext().Platform = settings.Platform
 
-	context := configuration.ToDictionary(configuration.CmdContext)
+	context := configuration.ToDictionary(configuration.GetCmdContext())
 	fs := afero.NewOsFs()
 
 	for srcFile, destFile := range config.Templates {

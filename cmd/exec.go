@@ -43,14 +43,14 @@ func doExecSequence(sequence, deviceName string) {
 
 	requireBuildArtifact()
 	var found bool
-	configuration.CmdContext.Device.Name = deviceName
-	configuration.CmdContext.Device.DeployDevice, found = config.Devices[deviceName]
+	configuration.GetCmdContext().Device.Name = deviceName
+	configuration.GetCmdContext().Device.DeployDevice, found = config.Devices[deviceName]
 	if !found {
 		failOperation(fmt.Sprintf("device '%s' not found", deviceName))
 	}
 
 	// connect to the device console
-	dev, err := device.NewDevice(configuration.CmdContext.Device.Endpoint, logFile)
+	dev, err := device.NewDevice(configuration.GetCmdContext().Device.Endpoint, logFile)
 	if err != nil {
 		failOperation(fmt.Sprintf("could not create device %s", deviceName))
 	}
@@ -64,32 +64,31 @@ func doExecSequence(sequence, deviceName string) {
 			if containerType == "" {
 				failOperation("no valid container framework found on device")
 			}
-			configuration.CmdContext.Build.Options.OutputType = containerType
+			configuration.GetCmdContext().Build.Options.OutputType = containerType
 		} else {
-			configuration.CmdContext.Build.Options.OutputType = "oci"
+			configuration.GetCmdContext().Build.Options.OutputType = "oci"
 		}
 	}
 
 	// populate contextCmd
-	configuration.CmdContext.Arch, err = dev.DiscoverTargetCPUArch(dispatcher)
+	configuration.GetCmdContext().Arch, err = dev.DiscoverTargetCPUArch(dispatcher)
 	if err != nil {
 		assertOperation("discovering device cpu architecture", err)
 	}
-	
 
-	artifactKey := fmt.Sprintf("%s-%s", configuration.CmdContext.Arch, configuration.CmdContext.Build.Options.OutputType)
-	buildArtifact, ok := configuration.CmdContext.BuildArtifacts[artifactKey]
+	artifactKey := fmt.Sprintf("%s-%s", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Build.Options.OutputType)
+	buildArtifact, ok := configuration.GetCmdContext().BuildArtifacts[artifactKey]
 	if !ok {
-		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", configuration.CmdContext.Arch))
+		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", configuration.GetCmdContext().Arch))
 	}
 
-	configuration.CmdContext.BuildArtifact = filepath.Base(buildArtifact)
-	configuration.CmdContext.Publish.PublishTarget = config.Publish[publishTargetName]
-	configuration.CmdContext.Publish.Name = publishTargetName
+	configuration.GetCmdContext().BuildArtifact = filepath.Base(buildArtifact)
+	configuration.GetCmdContext().Publish.PublishTarget = config.Publish[publishTargetName]
+	configuration.GetCmdContext().Publish.Name = publishTargetName
 	// publish build artifact(s) if a publish target has been specified in the deploy source
 	if publishTargetName != "" {
-		tui.LogNormal("Publishing \"%s\" artifact to \"%s\"", configuration.CmdContext.Arch, configuration.CmdContext.Publish.Name)
-		doPublishApp(configuration.CmdContext.Publish.Name, configuration.CmdContext.Arch, false)
+		tui.LogNormal("Publishing \"%s\" artifact to \"%s\"", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Publish.Name)
+		doPublishApp(configuration.GetCmdContext().Publish.Name, configuration.GetCmdContext().Arch, false)
 	}
 
 	// execute the sequence
