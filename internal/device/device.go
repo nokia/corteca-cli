@@ -24,8 +24,8 @@ const (
 
 // Command constants
 const (
-	cmdLCMList        = "lcm list"
-	cmdGrepPluginMgr  = "pgrep PluginMgr"
+	cmdLCMList       = "lcm list"
+	cmdGrepPluginMgr = "pgrep PluginMgr"
 )
 
 // Logger handles logging to a file or standard output
@@ -38,7 +38,6 @@ type Device interface {
 	Connect() (dispatcher.Dispatcher, error)
 	Close()
 	GetProtocol() int
-	DiscoverTargetCPUArch( dispatcher.Dispatcher) (string, error)
 }
 
 // NewDevice is a factory method that creates a Device based on the endpoint protocol

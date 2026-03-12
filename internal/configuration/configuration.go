@@ -184,7 +184,7 @@ type Endpoint struct {
 	PrivateKeyFile TemplateField `yaml:"privateKeyFile,omitempty"`
 	Token          TemplateField `yaml:"token,omitempty"`
 	CwmpServerAddr string        `yaml:"cwmpServerAddr,omitempty"`
-	DeviceArch     string        `yaml:"deviceArch,omitempty"`
+	Architecture   string        `yaml:"architecure,omitempty"`
 }
 
 type TemplateField struct {

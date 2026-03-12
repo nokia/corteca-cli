@@ -45,6 +45,7 @@ func doExecSequence(sequence, deviceName string) {
 	var found bool
 	configuration.GetCmdContext().Device.Name = deviceName
 	configuration.GetCmdContext().Device.DeployDevice, found = config.Devices[deviceName]
+	configuration.GetCmdContext().Arch = configuration.GetCmdContext().Device.Architecture
 	if !found {
 		failOperation(fmt.Sprintf("device '%s' not found", deviceName))
 	}
@@ -68,12 +69,6 @@ func doExecSequence(sequence, deviceName string) {
 		} else {
 			configuration.GetCmdContext().Build.Options.OutputType = "oci"
 		}
-	}
-
-	// populate contextCmd
-	configuration.GetCmdContext().Arch, err = dev.DiscoverTargetCPUArch(dispatcher)
-	if err != nil {
-		assertOperation("discovering device cpu architecture", err)
 	}
 
 	artifactKey := fmt.Sprintf("%s-%s", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Build.Options.OutputType)

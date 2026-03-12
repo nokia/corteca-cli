@@ -96,13 +96,6 @@ func (d *CWMPDevice) GetProtocol() int {
 	return ConnectionCWMP
 }
 
-func (d *CWMPDevice) DiscoverTargetCPUArch(dispatcher dispatcher.Dispatcher) (string, error) {
-	if configuration.GetCmdContext().Device.DeployDevice.DeviceArch == "" {
-		return "", fmt.Errorf("error discovering device architecture")
-	}
-	return configuration.GetCmdContext().Device.DeployDevice.DeviceArch, nil
-}
-
 func (c *CWMPDevice) Connect() (dispatcher.Dispatcher, error) {
 	var address string
 	u, err := url.Parse(c.endpoint.CwmpServerAddr)

@@ -21,7 +21,6 @@ const (
 
 	authSSHPassword  = "password"
 	authSSHPublicKey = "publicKey"
-	cmdCPUArch        = "uname -m"
 )
 
 type SSHClient interface {
@@ -30,13 +29,13 @@ type SSHClient interface {
 }
 
 type SSHDevice struct {
-	client   	SSHClient
-	urlInfo		*url.URL
-	auth        string
-	password2   string
-	keyFile 	string
-	token       string
-	log      	*Logger
+	client    SSHClient
+	urlInfo   *url.URL
+	auth      string
+	password2 string
+	keyFile   string
+	token     string
+	log       *Logger
 }
 
 func NewSSHDevice(endpoint configuration.Endpoint, logfile string) (*SSHDevice, error) {
@@ -55,21 +54,13 @@ func NewSSHDevice(endpoint configuration.Endpoint, logfile string) (*SSHDevice, 
 	}
 
 	return &SSHDevice{
-		urlInfo: u,
-		log: log,
-		auth: endpoint.Auth,
+		urlInfo:   u,
+		log:       log,
+		auth:      endpoint.Auth,
 		password2: endpoint.Password2.String(),
-		token: endpoint.Token.String(),
-		keyFile: endpoint.PrivateKeyFile.String(),
+		token:     endpoint.Token.String(),
+		keyFile:   endpoint.PrivateKeyFile.String(),
 	}, nil
-}
-
-func (d *SSHDevice)DiscoverTargetCPUArch(dispatcher dispatcher.Dispatcher) (string, error) {
-	output, err := dispatcher.ExecuteCommand(cmdCPUArch)
-	if err != nil {
-		return "", fmt.Errorf("failed to discover CPU architecture: %w", err)
-	}
-	return strings.TrimSpace(output), nil
 }
 
 func (d *SSHDevice) GetProtocol() int {
@@ -77,7 +68,6 @@ func (d *SSHDevice) GetProtocol() int {
 }
 
 func (d *SSHDevice) Connect() (dispatcher.Dispatcher, error) {
-	
 
 	d.log.LogFile.WriteString(fmt.Sprintf("\n=== New connection to %s on %s ===\n", d.urlInfo.Host, time.Now().Format(time.DateTime)))
 
