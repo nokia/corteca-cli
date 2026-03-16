@@ -118,7 +118,7 @@ type Settings struct {
 	App       AppSettings             `yaml:"app"`
 	Build     BuildSettings           `yaml:"build"`
 	Publish   DictType[PublishTarget] `yaml:"publish,omitempty"`
-	Devices   DictType[DeployDevice]  `yaml:"devices,omitempty"`
+	Devices   DictType[DeviceConfig]  `yaml:"devices,omitempty"`
 	Sequences SequenceMap             `yaml:"sequences,omitempty"`
 	Templates map[string]string       `yaml:"templates"`
 }
@@ -171,7 +171,7 @@ type PublishTarget struct {
 	PublicURL string        `yaml:"publicURL,omitempty"`
 }
 
-type DeployDevice struct {
+type DeviceConfig struct {
 	Endpoint `yaml:",omitempty,inline"`
 }
 
@@ -239,7 +239,7 @@ type CmdContext struct {
 	Arch           string            `yaml:"arch,omitempty"`
 	BuildArtifacts map[string]string `yaml:"buildArtifacts,omitempty"`
 	Device         struct {
-		DeployDevice `yaml:",omitempty,inline"`
+		DeviceConfig `yaml:",omitempty,inline"`
 		Name         string `yaml:"name,omitempty"`
 	} `yaml:"device,omitempty"`
 	Publish struct {
@@ -351,7 +351,7 @@ func NewConfiguration() Settings {
 			Architectures: make(ArchitecturesMap),
 		},
 		Publish:   make(DictType[PublishTarget]),
-		Devices:   make(DictType[DeployDevice]),
+		Devices:   make(DictType[DeviceConfig]),
 		Sequences: make(map[string]Sequence),
 		Templates: make(map[string]string),
 	}

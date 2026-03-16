@@ -44,7 +44,7 @@ func doExecSequence(sequence, deviceName string) {
 	requireBuildArtifact()
 	var found bool
 	configuration.GetCmdContext().Device.Name = deviceName
-	configuration.GetCmdContext().Device.DeployDevice, found = config.Devices[deviceName]
+	configuration.GetCmdContext().Device.DeviceConfig, found = config.Devices[deviceName]
 	configuration.GetCmdContext().Arch = configuration.GetCmdContext().Device.Architecture
 	if !found {
 		failOperation(fmt.Sprintf("device '%s' not found", deviceName))
