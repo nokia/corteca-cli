@@ -302,6 +302,7 @@ func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactTy
 			continue
 		}
 		configuration.CmdContext.BuildArtifacts[cpuArch+"-"+artifactType] = distFile
+		configuration.CmdContext.Arch = cpuArch
 	}
 }
 

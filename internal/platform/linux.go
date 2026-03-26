@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 )
 
-const DefaultSSHLog = "/dev/null"
+const DefaultLog = "/dev/null"
 
 func SetConfigPaths() (string, string) {
 	homeDir, _ := os.UserHomeDir()

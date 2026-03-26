@@ -17,8 +17,9 @@ corteca build ARCHITECTURE
 ### Flags
 
 ```yaml
---rootfs       Specify prebuilt root filesystem
---no-regen     Skip the regeneration of template files before building
+--rootfs            Specify prebuilt root filesystem
+--no-regen          Skip the regeneration of template files before building
+--skip-validation   Skip rootfs validation
 ```
 
 ### Options inherited from parent commands

@@ -45,7 +45,7 @@ func DefineOutputColor() {
 
 func LogNormal(format string, args ...any) {
 	format += "\n"
-	fmt.Fprintf(os.Stdout, format, args...)
+	fmt.Fprintf(os.Stderr, format, args...)
 }
 
 func LogError(format string, args ...any) {
@@ -144,4 +144,9 @@ func DisplaySuccessMsg(msg string) {
 
 func DisplayErrorMsg(msg string) {
 	LogError(msg)
+}
+
+func LogOutData(format string, args ...any) {
+	format += "\n"
+	fmt.Fprintf(os.Stdout, format, args...)
 }

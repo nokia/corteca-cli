@@ -24,8 +24,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"text/template"
-	"time"
 
 	"github.com/spf13/afero"
 	"gopkg.in/yaml.v3"
@@ -126,14 +124,14 @@ const (
 	ConfigFileName = "corteca.yaml"
 )
 
-var cmdRegularExpression *regexp.Regexp
 var regexKeyValue *regexp.Regexp
 var exprRegex *regexp.Regexp
+var cmdRegularExpression *regexp.Regexp
 
 func init() {
 	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
 	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
-	exprRegex = regexp.MustCompile(`\${\s*(.*?)\s*}`)
+	exprRegex = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
 	populateEnvVars()
 }
 
@@ -169,29 +167,64 @@ func evaluateExpressionFunc(visited []string, context any) func(string) string {
 	if visited == nil {
 		visited = make([]string, 0, 2)
 	}
+
 	return func(expr string) string {
-		key := exprRegex.FindStringSubmatch(expr)[1]
+		match := exprRegex.FindStringSubmatch(expr)
+		prefix := match[1]
+		key := match[2]
+		sep1 := match[3]
+		sep2 := match[4]
+		if len(sep1) == 0 {
+			sep1 = " "
+		}
+		if len(sep2) == 0 {
+			sep2 = " "
+		}
 
 		for i := range visited {
 			if key == visited[i] {
-				fmt.Printf("Warning: circular expression dependency detected for field: %s\n", key)
-				return ""
+				panic(fmt.Sprintf("Circular dependency detected for key: %s", key))
 			}
 		}
-
 		value, err := ReadField(context, key)
+		visited = append(visited, key)
 
 		if err != nil {
 			fmt.Printf("Warning: could not read field '%s' with error: %v\n", key, err.Error())
 			return ""
 		}
 
-		switch value.(type) {
-		case TemplateField:
-			visited = append(visited, key)
+		v := reflect.ValueOf(value)
+		if v.Type() == reflect.TypeOf(TemplateField{}) {
 			return generateExpressions(value.(TemplateField).RawTemplate, visited, context)
-		default:
-			return fmt.Sprintf("%v", value)
+		} else if v.Kind() == reflect.Map {
+			entries := make([]string, 0, v.Len())
+			it := v.MapRange()
+			for it.Next() {
+				left := it.Key().String()
+				right := ""
+				if it.Value().Type() == reflect.TypeOf(TemplateField{}) {
+					right = generateExpressions(it.Value().Interface().(TemplateField).RawTemplate, visited, context)
+				} else {
+					right = it.Value().String()
+				}
+				entries = append(entries, fmt.Sprintf("%s%s%s%s", prefix, left, sep1, right))
+			}
+			return strings.Join(entries, sep2)
+		} else if v.Kind() == reflect.Slice {
+			entries := make([]string, 0, v.Len())
+			for i := 0; i < v.Len(); i++ {
+				right := ""
+				if v.Index(i).Type() == reflect.TypeOf(TemplateField{}) {
+					right = generateExpressions(v.Index(i).Interface().(TemplateField).RawTemplate, visited, context)
+				} else {
+					right = v.Index(i).String()
+				}
+				entries = append(entries, fmt.Sprintf("%s%s", prefix, right))
+			}
+			return strings.Join(entries, sep1)
+		} else {
+			return fmt.Sprintf("%s%v", prefix, value)
 		}
 	}
 }
@@ -252,27 +285,21 @@ func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
 }
 
 type Endpoint struct {
-	Addr           TemplateField `yaml:"addr,omitempty"`
-	Auth           string        `yaml:"auth,omitempty"`
-	Username       TemplateField `yaml:"username,omitempty"`
-	Password       TemplateField `yaml:"password,omitempty"`
-	Password2      TemplateField `yaml:"password2,omitempty"`
-	PrivateKeyFile TemplateField `yaml:"privateKeyFile,omitempty"`
-	Token          TemplateField `yaml:"token,omitempty"`
+	Addr                      TemplateField `yaml:"addr,omitempty"`
+	Auth                      string        `yaml:"auth,omitempty"`
+	Username                  TemplateField `yaml:"username,omitempty"`
+	Password                  TemplateField `yaml:"password,omitempty"`
+	Password2                 TemplateField `yaml:"password2,omitempty"`
+	PrivateKeyFile            TemplateField `yaml:"privateKeyFile,omitempty"`
+	Token                     TemplateField `yaml:"token,omitempty"`
+	CwmpServerAddr            string        `yaml:"cwmpServerAddr,omitempty"`
+	DeviceArch                string        `yaml:"deviceArch,omitempty"`
 }
 
 type PublishTarget struct {
 	Endpoint  `yaml:",omitempty,inline"`
 	Method    PublishMethod `yaml:"method,omitempty"`
 	PublicURL string        `yaml:"publicURL,omitempty"`
-}
-
-type SequenceCmd struct {
-	Cmd           TemplateField `yaml:"cmd,omitempty"`
-	Delay         uint          `yaml:"delay,omitempty"`
-	Retries       uint          `yaml:"retries,omitempty"`
-	Input         TemplateField `yaml:"input,omitempty"`
-	IgnoreFailure bool          `yaml:"ignoreFailure,omitempty"`
 }
 
 type DownloadSource struct {
@@ -284,8 +311,6 @@ type DeployDevice struct {
 	Endpoint `yaml:",omitempty,inline"`
 }
 
-type Sequence []SequenceCmd
-
 type DictType[T any] map[string]T
 
 type Settings struct {
@@ -293,7 +318,7 @@ type Settings struct {
 	Build     BuildSettings           `yaml:"build"`
 	Publish   DictType[PublishTarget] `yaml:"publish,omitempty"`
 	Devices   DictType[DeployDevice]  `yaml:"devices,omitempty"`
-	Sequences map[string]Sequence     `yaml:"sequences,omitempty"`
+	Sequences SequenceMap             `yaml:"sequences,omitempty"`
 	Templates map[string]string       `yaml:"templates"`
 }
 
@@ -318,62 +343,6 @@ func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
 		(*t)[alias] = settings
 	}
 	return nil
-}
-
-type ExecuteCmdFunc func(string) error
-
-func (c *Settings) ExecuteSequence(name string, context any, executeCmdFunc ExecuteCmdFunc) error {
-	sequence, found := c.Sequences[name]
-	if !found {
-		return fmt.Errorf("sequence %s not found", name)
-	}
-	for idx, cmd := range sequence {
-		fmt.Printf("Executing sequence '%s' step %d/%d...\n", name, idx+1, len(sequence))
-		attempts := cmd.Retries + 1
-		for {
-			err := executeCommand(cmd, c, context, executeCmdFunc)
-			attempts--
-			if !cmd.IgnoreFailure && err != nil {
-				if attempts == 0 {
-					return err
-				} else {
-					fmt.Printf("Command failed (%s); will retry %d more time(s).\n", err.Error(), attempts)
-				}
-			}
-			if cmd.Delay > 0 {
-				fmt.Printf("=> Waiting for %d millisecond(s)...\n", cmd.Delay)
-				time.Sleep(time.Duration(cmd.Delay) * time.Millisecond)
-			}
-			if err == nil {
-				break
-			}
-		}
-	}
-	return nil
-}
-
-func findRefToSequence(seqCmd string) (string, bool) {
-	if cmdRefRegex := cmdRegularExpression.FindStringSubmatch(seqCmd); len(cmdRefRegex) == 2 {
-		return cmdRefRegex[1], true
-	} else {
-		return "", false
-	}
-}
-
-func executeCommand(cmd SequenceCmd, c *Settings, context any, executeCmdFunc ExecuteCmdFunc) error {
-	if seqName, found := findRefToSequence(cmd.Cmd.String()); found {
-		return c.ExecuteSequence(seqName, context, executeCmdFunc)
-	} else {
-		cmdStr, err := templating.RenderTemplateString(cmd.Cmd.String(), context)
-		if err != nil {
-			if _, ok := err.(template.ExecError); ok {
-				return fmt.Errorf("error rendering cmd content: %s", err.Error())
-			}
-			return err
-		}
-		fmt.Printf("=> Send cmd: '%s'...\n", cmdStr)
-		return executeCmdFunc(cmdStr)
-	}
 }
 
 func NewConfiguration() Settings {

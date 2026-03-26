@@ -92,8 +92,6 @@ func handlePublishMethodRegistry(target configuration.PublishTarget, arch string
 	if !found {
 		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, ociSuffix))
 	}
-	tag, err := publish.GenerateTag(config.App, artifact, arch)
-	assertOperation("generating tag", err)
 
 	registryURL, err := url.Parse(target.Addr.String())
 	assertOperation("parsing registry url", err)
@@ -108,7 +106,7 @@ func handlePublishMethodRegistry(target configuration.PublishTarget, arch string
 		registryURL.Host = net.JoinHostPort("127.0.0.1", registryURL.Port())
 	}
 
-	err = publish.PushImage(artifact, registryURL, "", tag, false)
+	err = publish.PushImage(artifact, registryURL, "", false)
 	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
 
 	if wait {
@@ -139,13 +137,11 @@ func handlePublishMethodPush(target configuration.PublishTarget, arch string) {
 	url, err := publish.AuthenticateHttp(target.Endpoint)
 	assertOperation("performing http authentication", err)
 
-	doPush(artifact, url, target.Token.String(), arch)
+	doPush(artifact, url, target.Token.String())
 }
 
-func doPush(artifact string, url *url.URL, token, arch string) {
-	tag, err := publish.GenerateTag(config.App, artifact, arch)
-	assertOperation("generating tag", err)
-	err = publish.PushImage(artifact, url, token, tag, true)
+func doPush(artifact string, url *url.URL, token string) {
+	err = publish.PushImage(artifact, url, token, true)
 	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
 }
 

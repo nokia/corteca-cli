@@ -40,9 +40,11 @@ publish:
         method: registry-v2
 
     remoteRegistry:
-        addr: https://corteca-registry.int.net.nokia.com
+        addr: https://corteca-registry.int.net.nokia.com/${.arch}/${.app.name}:${.app.version}
         auth: basic
         method: push
+        username: "${ .env.REGISTRY_USERNAME }"
+        password: "${ .env.REGISTRY_PASSWORD }"
 ```
 
 ## Example

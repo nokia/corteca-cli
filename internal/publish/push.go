@@ -1,7 +1,6 @@
 package publish
 
 import (
-	"corteca/internal/configuration"
 	"corteca/internal/fsutil"
 	"corteca/internal/tui"
 	"crypto/tls"
@@ -19,7 +18,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
-func PushImage(imagePath string, registryURL *url.URL, token, tag string, withProgress bool) error {
+func PushImage(imagePath string, addr *url.URL, token string, withProgress bool) error {
 	distDir := filepath.Dir(imagePath)
 	extractedImagePath := strings.TrimSuffix(imagePath, ".tar")
 	extractedOCIName := filepath.Base(extractedImagePath)
@@ -28,7 +27,7 @@ func PushImage(imagePath string, registryURL *url.URL, token, tag string, withPr
 		return fmt.Errorf("failed to extract OCI image: %w", err)
 	}
 
-	versionRef, err := name.NewTag(fmt.Sprintf("%s%s/%s", registryURL.Host, registryURL.Path, tag))
+	versionRef, err := name.NewTag(fmt.Sprintf("%s%s", addr.Host, addr.Path))
 	if err != nil {
 		return fmt.Errorf("failed to parse image reference: %w", err)
 	}
@@ -60,7 +59,7 @@ func PushImage(imagePath string, registryURL *url.URL, token, tag string, withPr
 		},
 	})
 
-	auth, err := getAuthenticator(registryURL, token)
+	auth, err := getAuthenticator(addr, token)
 	if err != nil {
 		return fmt.Errorf("failed to get authenticator: %w", err)
 	}
@@ -122,11 +121,4 @@ func getAuthenticator(registryURL *url.URL, token string) (authn.Authenticator, 
 func initializeProgressBar() *pterm.ProgressbarPrinter {
 	bar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Pushing").Start()
 	return bar
-}
-
-func GenerateTag(appSettings configuration.AppSettings, filePath, arch string) (string, error) {
-
-	appName := appSettings.Name
-	appVersion := appSettings.Version
-	return fmt.Sprintf("%s/%s:%s", arch, appName, appVersion), nil
 }

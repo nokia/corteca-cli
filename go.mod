@@ -1,19 +1,21 @@
 module corteca
 
-go 1.21
+go 1.21.0
 
 require (
 	github.com/mitchellh/copystructure v1.2.0
 	github.com/pterm/pterm v0.12.78
 	github.com/spf13/afero v1.11.0
 	github.com/spf13/cobra v1.7.0
-	golang.org/x/term v0.16.0 // indirect
+	golang.org/x/term v0.16.0
 )
 
 require (
+	github.com/beevik/etree v1.5.1
 	github.com/google/go-containerregistry v0.19.2
 	github.com/google/uuid v1.6.0
 	github.com/stretchr/testify v1.8.4
+	github.com/xinsnake/go-http-digest-auth-client v0.6.0
 	golang.org/x/crypto v0.16.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -44,6 +46,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sirupsen/logrus v1.9.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/objx v0.5.0 // indirect
 	github.com/vbatts/tar-split v0.11.3 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/sync v0.5.0 // indirect

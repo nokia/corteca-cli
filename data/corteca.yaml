@@ -71,11 +71,13 @@ build:
 # a sequence (array) of commands that will be executed on the device
 sequences:
     # <alias>:
-    #   - cmd: <command-to-run>
-    #     delay: <milliseconds-after-cmd>
-    #     retries: <attempts>
-    #     ignoreFailure: <true/false>
-    #     input: <command-input>
+    #   type: <sequence type> # one of `ssh`, `cwmp`
+    #   steps:
+    #     - cmd: <command-to-run>
+    #       delay: <milliseconds-after-cmd>
+    #       retries: <attempts>
+    #       ignoreFailure: <true/false>
+    #       input: <command-input>
 
 # Publish targets (endpoints)
 # ---------------------------
@@ -96,6 +98,11 @@ publish:
         addr: http://0.0.0.0:8080
         method: listen
         publicURL: http://172.17.0.1:8080
+
+    #   webserver:
+    #       addr: https://upload.example.com/artifacts/
+    #       auth: basic
+    #       method: put
 
     localRegistry:
         addr: http://0.0.0.0:8080

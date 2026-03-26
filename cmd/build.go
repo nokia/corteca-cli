@@ -20,8 +20,9 @@ import (
 )
 
 var (
-	rootfsPath string
-	err        error
+	skipValidation bool
+	rootfsPath     string
+	err            error
 )
 
 const (
@@ -48,6 +49,7 @@ corteca build armv7l --config build.options.outputType=oci`,
 
 func init() {
 	buildCmd.PersistentFlags().BoolVar(&noRegen, "no-regen", false, "Skip regeneration of templates")
+	buildCmd.PersistentFlags().BoolVar(&skipValidation, "skip-validation", false, "Skip rootfs validation")
 	buildCmd.PersistentFlags().StringVarP(&rootfsPath, "rootfs", "", "", "Specify prebuilt root filesystem")
 	rootCmd.AddCommand(buildCmd)
 }
@@ -98,8 +100,10 @@ func doBuildApp(selectedArchitecture string) {
 	}
 
 	// STEP 2: validate rootfs
-	// TODO: skip if a flag to skip validation has been provided
-	assertOperation("validating rootfs", packager.ValidateRootFS(rootfsBuildPath, selectedArchitecture, config.App))
+	// skip if a flag to skip validation has been provided
+	if !skipValidation {
+		assertOperation("validating rootfs", packager.ValidateRootFS(rootfsBuildPath, selectedArchitecture, config.App))
+	}
 
 	// STEP 3: annotate rootfs with build information
 	assertOperation("adding annotations", packager.AnnotateRootFS(rootfsBuildPath, config.App, buildMetadata))

@@ -4,6 +4,7 @@ import (
 	"corteca/internal/configuration"
 	"corteca/internal/device"
 	"corteca/internal/platform"
+	"corteca/internal/tui"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,7 @@ var execCmd = &cobra.Command{
 	Run:               func(cmd *cobra.Command, args []string) { doExecSequence(args[0], args[1]) },
 }
 
-var sshLogging string
+var logFile string
 var publishTargetName string
 
 func init() {
@@ -30,7 +31,7 @@ func init() {
 		return []string{"tar.gz, tar"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(execCmd)
-	execCmd.PersistentFlags().StringVar(&sshLogging, "ssh-log", platform.DefaultSSHLog, "Specify where SSH logs will be stored")
+	execCmd.PersistentFlags().StringVar(&logFile, "logfile", platform.DefaultLog, "Specify where SSH logs will be stored")
 	execCmd.PersistentFlags().StringVar(&publishTargetName, "publish", "", "Publish application artifact to specified target")
 	execCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
 }
@@ -49,25 +50,32 @@ func doExecSequence(sequence, deviceName string) {
 	}
 
 	// connect to the device console
-	fmt.Printf("Connecting to device console at %s...\n", configuration.CmdContext.Device.Addr.String())
-	conn, err := device.Connect(configuration.CmdContext.Device.Endpoint.Addr.String(), configuration.CmdContext.Device.Endpoint.Auth, configuration.CmdContext.Device.Endpoint.PrivateKeyFile.String(), configuration.CmdContext.Device.Endpoint.Password2.String(), sshLogging)
-	assertOperation("connecting to device console", err)
-	defer conn.Close()
+	dev, err := device.NewDevice(configuration.CmdContext.Device.Endpoint, logFile)
+	if err != nil {
+		failOperation(fmt.Sprintf("could not create device %s", deviceName))
+	}
+	dispatcher, err := dev.Connect()
+	assertOperation("connecting to device", err)
+	defer dev.Close()
 
 	if publishTargetName != "" {
-		containerType := device.ContainerFrameworkType(*conn)
-		if containerType == "" {
-			failOperation("no valid container framework found on device")
+		if dev.GetProtocol() == device.ConnectionSSH {
+			containerType := device.DetectContainerFramework(dispatcher)
+			if containerType == "" {
+				failOperation("no valid container framework found on device")
+			}
+			configuration.CmdContext.Build.Options.OutputType = containerType
+		} else {
+			configuration.CmdContext.Build.Options.OutputType = "oci"
 		}
-		configuration.CmdContext.Build.Options.OutputType = containerType
 	}
 
 	// populate contextCmd
-	configuration.CmdContext.Arch, err = device.DiscoverTargetCPUarch(*conn)
+	configuration.CmdContext.Arch, err = dev.DiscoverTargetCPUArch(dispatcher)
 	if err != nil {
 		assertOperation("discovering device cpu architecture", err)
 	}
-	fmt.Printf("Discovered CPU architecture for '%s': '%s'\n", deviceName, configuration.CmdContext.Arch)
+	
 
 	artifactKey := fmt.Sprintf("%s-%s", configuration.CmdContext.Arch, configuration.CmdContext.Build.Options.OutputType)
 	buildArtifact, ok := configuration.CmdContext.BuildArtifacts[artifactKey]
@@ -80,16 +88,17 @@ func doExecSequence(sequence, deviceName string) {
 	configuration.CmdContext.Publish.Name = publishTargetName
 	// publish build artifact(s) if a publish target has been specified in the deploy source
 	if publishTargetName != "" {
-		fmt.Printf("Publishing \"%s\" artifact to \"%s\"\n", configuration.CmdContext.Arch, configuration.CmdContext.Publish.Name)
+		tui.LogNormal("Publishing \"%s\" artifact to \"%s\"", configuration.CmdContext.Arch, configuration.CmdContext.Publish.Name)
 		doPublishApp(configuration.CmdContext.Publish.Name, configuration.CmdContext.Arch, false)
 	}
 
 	// execute the sequence
-	fmt.Printf("Deploying %s...\n", buildArtifact)
-	assertOperation("executing "+sequence+" sequence", config.ExecuteSequence(sequence, configuration.ToDictionary(configuration.CmdContext), func(cmd string) error {
-		_, _, err := conn.SendCmd(cmd)
-		return err
-	}))
+	tui.LogNormal("Deploying %s...", buildArtifact)
+	if err = config.Sequences.Execute(dispatcher, sequence); err != nil {
+		tui.LogError("Error while %v: %v", "executing "+sequence+" sequence", err.Error())
+		return
+	}
+	tui.DisplaySuccessMsg("Sequence completed successfully!")
 }
 
 func validExecArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

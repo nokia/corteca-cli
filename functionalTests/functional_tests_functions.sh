@@ -256,20 +256,26 @@ prepare_yaml(){
 add_sequence_to_yaml(){
     echo "sequences:" >> ./corteca.yaml
     echo "    create: " >> ./corteca.yaml
-    echo "        - cmd: touch test_seq.txt" >> ./corteca.yaml
-    echo "          delay: 1000" >> ./corteca.yaml
+    echo "        type: ssh " >> ./corteca.yaml
+    echo "        steps: " >> ./corteca.yaml
+    echo "            - cmd: touch test_seq.txt" >> ./corteca.yaml
+    echo "              delay: 1000" >> ./corteca.yaml
     echo "    add: " >> ./corteca.yaml
-    echo "        - cmd: \$(create)" >> ./corteca.yaml
-    echo "        - cmd: echo \"Testing sequences\" >> test_seq.txt" >> ./corteca.yaml
-    echo "          delay: 1000" >> ./corteca.yaml
-    echo "        - cmd: ls -al | grep test_seq.txt" >> ./corteca.yaml
-    echo "          delay: 1000" >> ./corteca.yaml
-    echo "          retries: 2" >> ./corteca.yaml
+    echo "        type: ssh " >> ./corteca.yaml
+    echo "        steps: " >> ./corteca.yaml
+    echo "            - cmd: \$(create)" >> ./corteca.yaml
+    echo "            - cmd: echo \"Testing sequences\" >> test_seq.txt" >> ./corteca.yaml
+    echo "              delay: 1000" >> ./corteca.yaml
+    echo "            - cmd: ls -al | grep test_seq.txt" >> ./corteca.yaml
+    echo "              delay: 1000" >> ./corteca.yaml
+    echo "              retries: 2" >> ./corteca.yaml
     echo "    testSequence: " >> ./corteca.yaml
-    echo "        - cmd: \$(add)" >> ./corteca.yaml
-    echo "        - cmd: cat test_seq.txt | grep \"Testing sequences\"" >> ./corteca.yaml
-    echo "          delay: 1000" >> ./corteca.yaml
-    echo "          retries: 2" >> ./corteca.yaml
+    echo "        type: ssh " >> ./corteca.yaml
+    echo "        steps: " >> ./corteca.yaml
+    echo "            - cmd: \$(add)" >> ./corteca.yaml
+    echo "            - cmd: cat test_seq.txt | grep \"Testing sequences\"" >> ./corteca.yaml
+    echo "              delay: 1000" >> ./corteca.yaml
+    echo "              retries: 2" >> ./corteca.yaml
 }
 
 wait_for_ssh_connectivity() {
