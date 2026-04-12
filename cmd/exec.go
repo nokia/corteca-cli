@@ -3,9 +3,13 @@ package cmd
 import (
 	"corteca/internal/configuration"
 	"corteca/internal/device"
+	_ "corteca/internal/device/cwmp"
+	_ "corteca/internal/device/ssh"
 	"corteca/internal/platform"
 	"corteca/internal/tui"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -35,51 +39,57 @@ func init() {
 	execCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
 }
 
-func doExecSequence(sequence, deviceName string) {
-	var found bool
-	configuration.GetCmdContext().Device.Name = deviceName
-	configuration.GetCmdContext().Device.DeviceConfig, found = config.Devices[deviceName]
-	configuration.GetCmdContext().Arch = configuration.GetCmdContext().Device.Architecture
-	if !found {
-		failOperation(fmt.Sprintf("device '%s' not found", deviceName))
+func doExecSequence(sequencename, deviceName string) {
+	if devConfig, found := config.Devices[deviceName]; !found {
+		failOperation(fmt.Sprintf("no config for device '%s' was found", deviceName))
+	} else {
+		configuration.GetCmdContext().Device.DeviceConfig = devConfig
+		configuration.GetCmdContext().Device.Name = deviceName
+		configuration.GetCmdContext().Arch = configuration.GetCmdContext().Device.Architecture
+	}
+
+	// prepare log file
+	var log io.WriteCloser
+	switch strings.ToLower(logFile) {
+	case "stdout":
+		log = os.Stdout
+	case "stderr":
+		log = os.Stderr
+	default:
+		if f, err := os.OpenFile(logFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666); err != nil {
+			failOperation(fmt.Sprintf("Could not create log file: %s", err.Error()))
+		} else {
+			log = f
+			defer func() {
+				if err := f.Close(); err != nil {
+					tui.LogError("could not close log file (%s)", err.Error())
+				}
+			}()
+		}
 	}
 
 	// connect to the device console
-	dev, err := device.NewDevice(configuration.GetCmdContext().Device.Endpoint, logFile)
+	device, err := device.NewDevice(&configuration.GetCmdContext().Device.DeviceConfig, log)
 	if err != nil {
-		failOperation(fmt.Sprintf("could not create device %s", deviceName))
+		failOperation(fmt.Sprintf("could not create device %s (%s)", deviceName, err.Error()))
 	}
-	dispatcher, err := dev.Connect()
-	assertOperation("connecting to device", err)
-	defer dev.Close()
-
-	if publishTargetName != "" {
-		if dev.GetProtocol() == device.ConnectionSSH {
-			containerType := device.DetectContainerFramework(dispatcher)
-			if containerType == "" {
-				failOperation("no valid container framework found on device")
-			}
-			configuration.GetCmdContext().Build.Options.OutputType = containerType
-		} else {
-			configuration.GetCmdContext().Build.Options.OutputType = "oci"
-		}
-	}
+	tui.LogNormal("Selected device '%s', protocol: %s", deviceName, device.GetProtocol())
+	defer device.Close()
 
 	// publish build artifact(s) if a publish target has been specified in the deploy source
 	if publishTargetName != "" {
 		configuration.GetCmdContext().Publish.PublishTarget = config.Publish[publishTargetName]
 		configuration.GetCmdContext().Publish.Name = publishTargetName
-		tui.LogNormal("Publishing \"%s\" artifact to \"%s\"", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Publish.Name)
+		tui.LogNormal("Publishing artifact to '%s'", configuration.GetCmdContext().Publish.Name)
 		doPublishApp(configuration.GetCmdContext().Publish.Name, false)
 	}
 
 	// execute the sequence
-	tui.LogNormal("Executing '%s' sequence on device '%s'...", sequence, deviceName)
-	if err = config.Sequences.Execute(dispatcher, sequence); err != nil {
-		tui.LogError("Error while %v: %v", "executing "+sequence+" sequence", err.Error())
-		return
+	if err = config.Sequences.Execute(device, sequencename, false); err != nil {
+		tui.LogError("Error while executing sequence '%s': %s", sequencename, err.Error())
+	} else {
+		tui.DisplaySuccessMsg("Sequence completed successfully!")
 	}
-	tui.DisplaySuccessMsg("Sequence completed successfully!")
 }
 
 func validExecArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

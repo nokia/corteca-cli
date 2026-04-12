@@ -109,19 +109,19 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	return nil
 }
 
-func AuthenticateHttp(endpoint configuration.Endpoint) (*url.URL, error) {
+func AuthenticateHttp(config configuration.HttpClientEndpoint) (*url.URL, error) {
 
-	u, err := url.Parse(endpoint.Addr.String())
+	u, err := url.Parse(config.Addr.String())
 	if err != nil {
 		return nil, err
 	}
 
-	authType := strings.ToLower(endpoint.Auth)
+	authType := strings.ToLower(config.Auth)
 	switch authType {
 	case authHttpBasicName:
 
-		username := endpoint.Username.String()
-		password := endpoint.Password.String()
+		username := config.Username.String()
+		password := config.Password.String()
 
 		// Check for username in .yaml config
 		if username == "" {
@@ -145,7 +145,7 @@ func AuthenticateHttp(endpoint configuration.Endpoint) (*url.URL, error) {
 		u.User = url.UserPassword(username, password)
 
 	case authHttpBearerName:
-		if endpoint.Token.String() == "" {
+		if config.Token.String() == "" {
 			return nil, errors.New("no bearer token present in configuration even though HTTP Bearer authentication has been requested")
 		}
 	case authHttpDigestName:

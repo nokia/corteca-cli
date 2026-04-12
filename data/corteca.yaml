@@ -71,8 +71,6 @@ build:
 # a sequence (array) of commands that will be executed on the device
 sequences:
     # <alias>:
-    #   type: <sequence type> # one of `ssh`, `cwmp`
-    #   steps:
     #     - cmd: <command-to-run>
     #       delay: <milliseconds-after-cmd>
     #       retries: <attempts>

@@ -1,148 +1,174 @@
 package configuration
 
 import (
-	"corteca/internal/dispatcher"
+	"context"
 	"corteca/internal/tui"
+	"errors"
 	"fmt"
-	"strings"
+	"os"
+	"regexp"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
+var cmdRegularExpression *regexp.Regexp
+
+func init() {
+	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
+}
+
+const (
+	DefaultMaxTimeout = 5 * time.Minute
+)
+
+var (
+	ErrAbortSequence = errors.New("fatal error")
+)
+
 type SequenceMap map[string]Sequence
 
-func (sm *SequenceMap) UnmarshalYAML(data *yaml.Node) error {
-	sequences := make(map[string]struct {
-		Type  string      `yaml:"type"`
-		Steps []yaml.Node `yaml:"steps"`
-	})
-	if err := data.Decode(sequences); err != nil {
-		fmt.Println("Decode error")
+type Sequence []SequenceCmd
+
+type SequenceCmd struct {
+	Cmd           TemplateField `yaml:"cmd"`
+	Delay         time.Duration `yaml:"duration,omitempty"`
+	Timeout       time.Duration `yaml:"timeout,omitempty"`
+	Retries       uint          `yaml:"retries,omitempty"`
+	IgnoreFailure *bool         `yaml:"ignoreFailure,omitempty"`
+	raw           *yaml.Node
+}
+
+func parseDuration(value string, defaultvalue time.Duration) (time.Duration, error) {
+	if len(value) > 0 {
+		return time.ParseDuration(value)
+	} else {
+		return defaultvalue, nil
+	}
+}
+
+func (cmd *SequenceCmd) UnmarshalYAML(value *yaml.Node) error {
+	cmd.raw = value
+	var proxy struct {
+		Cmd           TemplateField `yaml:"cmd"`
+		Delay         string        `yaml:"duration"`
+		Timeout       string        `yaml:"timeout"`
+		Retries       uint          `yaml:"retries"`
+		IgnoreFailure *bool         `yaml:"ignoreFailure"`
+	}
+	if err := value.Decode(&proxy); err != nil {
 		return err
 	}
-
-	for seqName, rawSeq := range sequences {
-		switch rawSeq.Type {
-		case "ssh":
-			steps := make([]StringCmd, len(rawSeq.Steps))
-
-			for i, node := range rawSeq.Steps {
-				var step StringCmd
-				if err := node.Decode(&step); err != nil {
-					return fmt.Errorf("error decoding step %d in sequence %q: %w", i, seqName, err)
-				}
-				steps[i] = step
-			}
-
-			(*sm)[seqName] = NewStringSequence(rawSeq.Type, steps)
-		case "cwmp":
-			steps := make([]CwmpCmd, len(rawSeq.Steps))
-
-			for i, node := range rawSeq.Steps {
-				var step CwmpCmd
-				if err := node.Decode(&step); err != nil {
-					return fmt.Errorf("error decoding step %d in sequence %q: %w", i, seqName, err)
-				}
-				steps[i] = step
-			}
-
-			(*sm)[seqName] = NewCwmpSequence(rawSeq.Type, steps)
-		}
+	cmd.Cmd = proxy.Cmd
+	if d, err := parseDuration(proxy.Delay, 0); err != nil {
+		return err
+	} else {
+		cmd.Delay = d
 	}
+	if d, err := parseDuration(proxy.Timeout, 0); err != nil {
+		return err
+	} else {
+		cmd.Timeout = d
+	}
+	cmd.Retries = proxy.Retries
+	cmd.IgnoreFailure = proxy.IgnoreFailure
 	return nil
 }
 
-func (sm *SequenceMap) Execute(dispatcher dispatcher.Dispatcher, seq string) error {
-	selectedSequence, found := (*sm)[seq]
+func (cmd SequenceCmd) MarshalYAML() (any, error) {
+	return cmd.raw, nil
+}
+
+func (cmd *SequenceCmd) Decode(v any) error {
+	return cmd.raw.Decode(v)
+}
+
+type CommandExecutor interface {
+	BeginSequence() error
+	ExecuteCommand(context.Context, *SequenceCmd) (any, error)
+	EndSequence() error
+}
+
+func (sm *SequenceMap) Execute(executor CommandExecutor, seqName string, skipinit bool) error {
+	seq, found := (*sm)[seqName]
 	if !found {
-		return fmt.Errorf("sequence '%s' was not found", seq)
+		return fmt.Errorf("sequence '%s' was not found", seqName)
 	}
-	tui.LogNormal("Executing sequence %s", seq)
-	return selectedSequence.Execute(dispatcher, *sm)
-}
-
-type Sequence interface {
-	GetType() string
-	Execute(dispatcher.Dispatcher, SequenceMap) error
-}
-
-func NewStringSequence(tp string, steps []StringCmd) *StringSequence {
-	return &StringSequence{tp, steps}
-}
-
-type StringSequence struct {
-	Type  string
-	Steps []StringCmd
-}
-
-func (sq *StringSequence) GetType() string {
-	return sq.Type
-}
-
-func (sq *StringSequence) Execute(dispathcer dispatcher.Dispatcher, sm SequenceMap) error {
-	for idx, step := range sq.Steps {
-		if seqName, found := findRefToSequence(step.Cmd.String()); found {
-			err := sm.Execute(dispathcer, seqName)
-			if err != nil {
-				return fmt.Errorf("reference sequence failed at step %d: %w", idx+1, err)
+	tui.LogNormal("Executing sequence '%s'", seqName)
+	if !skipinit {
+		if err := executor.BeginSequence(); err != nil {
+			return fmt.Errorf("failed to initialize sequence: %w", err)
+		}
+	}
+	for idx, step := range seq {
+		if refSeqName, found := findRefToSequence(step.Cmd.String()); found {
+			if err := sm.Execute(executor, refSeqName, true); err != nil {
+				return err
 			}
-		} else {
-
-			if out, err := step.Execute(dispathcer); err != nil {
-				return fmt.Errorf("sequence failed at step %d: %w", idx+1, err)
-			} else {
-				tui.LogOutData(out)
-			}
+			continue
+		}
+		res, err := executeStep(&step, executor)
+		if err != nil {
+			return fmt.Errorf("sequence '%s' failed at step %d: %w", seqName, idx+1, err)
+		}
+		// TODO: provide option to suppress output
+		tui.SetOutputColor(tui.CBlue, os.Stdout)
+		enc := yaml.NewEncoder(os.Stdout)
+		enc.Encode(res)
+		tui.ResetOutputColor(os.Stdout)
+	}
+	if !skipinit {
+		if err := executor.EndSequence(); err != nil {
+			return fmt.Errorf("failed to shutdown sequence: %w", err)
 		}
 	}
 	return nil
 }
 
-func findRefToSequence(seqCmd string) (string, bool) {
-	if cmdRefRegex := cmdRegularExpression.FindStringSubmatch(seqCmd); len(cmdRefRegex) == 2 {
+func findRefToSequence(expr string) (string, bool) {
+	if cmdRefRegex := cmdRegularExpression.FindStringSubmatch(expr); len(cmdRefRegex) == 2 {
 		return cmdRefRegex[1], true
 	} else {
 		return "", false
 	}
 }
 
-type SequenceCmd interface {
-	Execute(dispatcher.Dispatcher) error
+func createContext(timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout == 0 {
+		timeout = DefaultMaxTimeout
+	}
+	return context.WithTimeout(context.Background(), timeout)
 }
 
-type CwmpSequence struct {
-	Type  string
-	Steps []CwmpCmd
-}
-
-func NewCwmpSequence(tp string, steps []CwmpCmd) *CwmpSequence {
-	return &CwmpSequence{tp, steps}
-}
-
-func (sq *CwmpSequence) GetType() string {
-	return sq.Type
-}
-
-func (sq *CwmpSequence) Execute(dispathcer dispatcher.Dispatcher, sm SequenceMap) error {
-	for idx, step := range sq.Steps {
-		// Cmd, Operation and PrintFormat should be lowercase in order for the code to work
-		step.Cmd.RawTemplate = strings.ToLower(step.Cmd.String())
-		step.Operation = strings.ToLower(step.Operation)
-		step.PrintFormat = strings.ToLower(step.PrintFormat)
-		if seqName, found := findRefToSequence(step.Cmd.String()); found {
-			err := sm.Execute(dispathcer, seqName)
-			if err != nil {
-				return fmt.Errorf("reference sequence failed at step %d: %w", idx+1, err)
-			}
-		} else {
-			if cmdResults, err := step.Execute(dispathcer); err != nil {
-				return fmt.Errorf("sequence failed at step %d: %w", idx+1, err)
+func executeStep(step *SequenceCmd, executor CommandExecutor) (any, error) {
+	attempts := step.Retries + 1
+	var (
+		res any
+		err error
+	)
+	for attempts > 0 {
+		if step.Delay > 0 {
+			tui.LogNormal("Waiting for %s", step.Delay.String())
+			time.Sleep(step.Delay)
+		}
+		ctx, cancel := createContext(step.Timeout)
+		defer cancel()
+		res, err = executor.ExecuteCommand(ctx, step)
+		attempts--
+		if err != nil {
+			if step.IgnoreFailure != nil && (*step.IgnoreFailure) {
+				return res, nil
 			} else {
-				if cmdResults != "" {
-					tui.LogOutData(cmdResults)
+				tui.LogError("Command failed: %s", err.Error())
+				if attempts > 0 {
+					tui.LogNormal("Will retry %d more time(s)", attempts)
+				} else {
+					return res, err
 				}
 			}
+		} else {
+			break
 		}
 	}
-	return nil
+	return res, nil
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/pterm/pterm"
 )
 
+// TODO: replace addr Url type with configuration.HttpClientEndpoint
 func PushImage(imagePath string, addr *url.URL, token string, withProgress bool) error {
 	distDir := filepath.Dir(imagePath)
 	extractedImagePath := strings.TrimSuffix(imagePath, ".tar")
