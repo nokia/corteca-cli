@@ -1,122 +1,125 @@
+// Copyright 2024 Nokia
+// Licensed under the BSD 3-Clause License.
+// SPDX-License-Identifier: BSD-3-Clause
+
 package device_test
 
 import (
+	"context"
 	"corteca/internal/configuration"
 	"corteca/internal/device"
-	"errors"
-	"os"
+	"io"
 	"testing"
 )
 
-// MockDispatcher simulates dispatcher.Dispatcher behavior
-type MockDispatcher struct {
-	Responses   map[string]string
-	Failures    map[string]error
-	printFormat string
+// mockDevice is a minimal Device implementation used in tests.
+type mockDevice struct {
+	protocol string
 }
 
-func (m *MockDispatcher) ExecuteCommand(cmd any) (string, error) {
-	commandStr, ok := cmd.(string)
-	if !ok {
-		return "", errors.New("invalid command type")
-	}
-	if err, exists := m.Failures[commandStr]; exists {
-		return "", err
-	}
-	if output, exists := m.Responses[commandStr]; exists {
-		return output, nil
-	}
-	return "", nil
+func (m *mockDevice) Close() {}
+
+func (m *mockDevice) GetProtocol() string {
+	return m.protocol
 }
 
-func (m *MockDispatcher) SetPrintFormat(format string) {
-	m.printFormat = format
+func (m *mockDevice) BeginSequence() error {
+	return nil
 }
 
-// --- Tests ---
+func (m *mockDevice) ExecuteCommand(_ context.Context, _ *configuration.SequenceCmd) (any, error) {
+	return nil, nil
+}
 
-func TestNewDevice_SSH(t *testing.T) {
-	endpoint := configuration.Endpoint{
-		Addr: configuration.TemplateField{RawTemplate: "ssh://user@localhost"},
-	}
-	dev, err := device.NewDevice(endpoint, "stdout")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if dev.GetProtocol() != device.ConnectionSSH {
-		t.Errorf("expected SSH protocol, got %d", dev.GetProtocol())
+func (m *mockDevice) EndSequence() error {
+	return nil
+}
+
+// makeCreator returns a DeviceCreator that records whether it was called and
+// returns a mockDevice with the given protocol label.
+func makeCreator(protocol string, called *bool) device.DeviceCreator {
+	return func(cfg *configuration.DeviceConfig, log io.Writer) (device.Device, error) {
+		*called = true
+		return &mockDevice{protocol: protocol}, nil
 	}
 }
 
-func TestNewDevice_Unsupported(t *testing.T) {
-	endpoint := configuration.Endpoint{
-		Addr: configuration.TemplateField{RawTemplate: "ftp://localhost"},
+func TestNewDevice_CorrectCreatorIsDispatched(t *testing.T) {
+	tests := []struct {
+		name     string
+		schema   string
+		protocol string
+	}{
+		{name: "alpha schema", schema: "alpha", protocol: "alpha"},
+		{name: "beta schema", schema: "beta", protocol: "beta"},
+		{name: "gamma schema", schema: "gamma", protocol: "gamma"},
 	}
-	_, err := device.NewDevice(endpoint, "stdout")
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			calledAlpha := false
+			calledBeta := false
+			calledGamma := false
+
+			device.RegisterDeviceType("alpha", makeCreator("alpha", &calledAlpha))
+			device.RegisterDeviceType("beta", makeCreator("beta", &calledBeta))
+			device.RegisterDeviceType("gamma", makeCreator("gamma", &calledGamma))
+
+			cfg := &configuration.DeviceConfig{
+				Endpoint: configuration.Endpoint{
+					Addr: configuration.T(tc.schema + "://some-host"),
+				},
+			}
+
+			dev, err := device.NewDevice(cfg, io.Discard)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if dev.GetProtocol() != tc.protocol {
+				t.Errorf("expected protocol %q, got %q", tc.protocol, dev.GetProtocol())
+			}
+
+			// Verify exactly the right creator was called.
+			if tc.schema == "alpha" && !calledAlpha {
+				t.Error("expected alpha creator to be called")
+			}
+			if tc.schema == "beta" && !calledBeta {
+				t.Error("expected beta creator to be called")
+			}
+			if tc.schema == "gamma" && !calledGamma {
+				t.Error("expected gamma creator to be called")
+			}
+
+			// Verify the other creators were NOT called.
+			if tc.schema != "alpha" && calledAlpha {
+				t.Error("alpha creator should not have been called")
+			}
+			if tc.schema != "beta" && calledBeta {
+				t.Error("beta creator should not have been called")
+			}
+			if tc.schema != "gamma" && calledGamma {
+				t.Error("gamma creator should not have been called")
+			}
+		})
+	}
+}
+
+func TestNewDevice_UnknownSchema_ReturnsError(t *testing.T) {
+	device.RegisterDeviceType("alpha", makeCreator("alpha", new(bool)))
+	device.RegisterDeviceType("beta", makeCreator("beta", new(bool)))
+	device.RegisterDeviceType("gamma", makeCreator("gamma", new(bool)))
+
+	cfg := &configuration.DeviceConfig{
+		Endpoint: configuration.Endpoint{
+			Addr: configuration.T("unknown://some-host"),
+		},
+	}
+
+	dev, err := device.NewDevice(cfg, io.Discard)
 	if err == nil {
-		t.Fatal("expected error for unsupported protocol")
+		t.Fatal("expected an error for unknown schema, got nil")
 	}
-}
-
-func TestNewLogger_Stdout(t *testing.T) {
-	logger, err := device.NewLogger("stdout")
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if logger == nil || logger.LogFile != os.Stdout {
-		t.Error("expected logger to use stdout")
-	}
-}
-
-func TestNewLogger_File(t *testing.T) {
-	filename := "test.log"
-	defer os.Remove(filename)
-
-	logger, err := device.NewLogger(filename)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if logger == nil || logger.LogFile == nil {
-		t.Error("expected logger to open file")
-	}
-}
-
-func TestDetectContainerFramework_OCI(t *testing.T) {
-	mock := &MockDispatcher{
-		Responses: map[string]string{
-			"lcm list": "running",
-		},
-	}
-	result := device.DetectContainerFramework(mock)
-	if result != "oci" {
-		t.Errorf("expected 'oci', got %s", result)
-	}
-}
-
-func TestDetectContainerFramework_RootFS(t *testing.T) {
-	mock := &MockDispatcher{
-		Failures: map[string]error{
-			"lcm list": errors.New("not found"),
-		},
-		Responses: map[string]string{
-			"pgrep PluginMgr": "PluginMgr",
-		},
-	}
-	result := device.DetectContainerFramework(mock)
-	if result != "rootfs" {
-		t.Errorf("expected 'rootfs', got %s", result)
-	}
-}
-
-func TestDetectContainerFramework_Unknown(t *testing.T) {
-	mock := &MockDispatcher{
-		Failures: map[string]error{
-			"lcm list":        errors.New("not found"),
-			"pgrep PluginMgr": errors.New("not found"),
-		},
-	}
-	result := device.DetectContainerFramework(mock)
-	if result != "" {
-		t.Errorf("expected empty string, got %s", result)
+	if dev != nil {
+		t.Errorf("expected nil device for unknown schema, got %v", dev)
 	}
 }

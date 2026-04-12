@@ -36,80 +36,12 @@ const (
 	ConfigFileName      = "corteca.yaml"
 )
 
-const (
-	PUBLISH_METHOD_UNDEFINED = iota
-	PUBLISH_METHOD_LISTEN
-	PUBLISH_METHOD_PUT
-	PUBLISH_METHOD_COPY
-	PUBLISH_METHOD_PUSH
-	PUBLISH_METHOD_REGISTRY
-)
-
-const (
-	publishMethodListenName   = "listen"
-	publishMethodPutName      = "put"
-	publishMethodCopyName     = "copy"
-	publishMethodPushName     = "push"
-	publishMethodRegistryName = "registry-v2"
-)
-
-type PublishMethod int
-
-func (m PublishMethod) MarshalYAML() (interface{}, error) {
-	var out []byte
-	var err error
-
-	switch m {
-	case PUBLISH_METHOD_LISTEN:
-		out, err = yaml.Marshal(publishMethodListenName)
-	case PUBLISH_METHOD_PUT:
-		out, err = yaml.Marshal(publishMethodPutName)
-	case PUBLISH_METHOD_COPY:
-		out, err = yaml.Marshal(publishMethodCopyName)
-	case PUBLISH_METHOD_PUSH:
-		out, err = yaml.Marshal(publishMethodPushName)
-	case PUBLISH_METHOD_REGISTRY:
-		out, err = yaml.Marshal(publishMethodRegistryName)
-	default:
-		out = nil
-		err = fmt.Errorf("invalid publish method (%v)", m)
-	}
-
-	return strings.TrimSpace(string(out)), err
-
-}
-
-func (m *PublishMethod) UnmarshalYAML(data *yaml.Node) error {
-	var name string
-	if err := yaml.Unmarshal([]byte(data.Value), &name); err != nil {
-		return err
-	}
-	name = strings.ToLower(name)
-	switch name {
-	case publishMethodListenName:
-		*m = PUBLISH_METHOD_LISTEN
-	case publishMethodPutName:
-		*m = PUBLISH_METHOD_PUT
-	case publishMethodCopyName:
-		*m = PUBLISH_METHOD_COPY
-	case publishMethodPushName:
-		*m = PUBLISH_METHOD_PUSH
-	case publishMethodRegistryName:
-		*m = PUBLISH_METHOD_REGISTRY
-	default:
-		return fmt.Errorf("unrecognized publish method '%v'", name)
-	}
-	return nil
-}
-
 var regexKeyValue *regexp.Regexp
-var exprRegex *regexp.Regexp
-var cmdRegularExpression *regexp.Regexp
+var regexDollarExpr *regexp.Regexp
 
 func init() {
-	cmdRegularExpression = regexp.MustCompile(`^\s*\$\((.+)\)\s*$`)
 	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
-	exprRegex = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
+	regexDollarExpr = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
 	populateEnvVars()
 }
 
@@ -166,42 +98,84 @@ type CrossCompileConfig struct {
 }
 
 type PublishTarget struct {
-	Endpoint  `yaml:",omitempty,inline"`
-	Method    PublishMethod `yaml:"method,omitempty"`
-	PublicURL string        `yaml:"publicURL,omitempty"`
+	Method string `yaml:"method"`
+	raw    *yaml.Node
+}
+
+func (d PublishTarget) MarshalYAML() (interface{}, error) {
+	return d.raw, nil
+}
+
+func (d *PublishTarget) UnmarshalYAML(value *yaml.Node) error {
+	d.raw = value
+	var proxy struct {
+		Method string `yaml:"method"`
+	}
+	err := value.Decode(&proxy)
+	d.Method = proxy.Method
+	return err
+}
+
+func (d PublishTarget) Decode(v interface{}) error {
+	return d.raw.Decode(v)
 }
 
 type DeviceConfig struct {
-	Endpoint `yaml:",omitempty,inline"`
+	Endpoint     `yaml:",omitempty,inline"`
+	Architecture string `yaml:"architecure,omitempty"`
+	raw          *yaml.Node
+}
+
+func (d DeviceConfig) MarshalYAML() (interface{}, error) {
+	return d.raw, nil
+}
+
+func (d *DeviceConfig) UnmarshalYAML(value *yaml.Node) error {
+	d.raw = value
+	var proxy struct {
+		Endpoint     `yaml:",omitempty,inline"`
+		Architecture string `yaml:"architecure,omitempty"`
+	}
+	err := value.Decode(&proxy)
+	d.Endpoint = proxy.Endpoint
+	d.Architecture = proxy.Architecture
+	return err
+}
+
+func (d *DeviceConfig) Decode(v interface{}) error {
+	return d.raw.Decode(v)
 }
 
 type Endpoint struct {
-	Addr           TemplateField `yaml:"addr,omitempty"`
-	Auth           string        `yaml:"auth,omitempty"`
-	Username       TemplateField `yaml:"username,omitempty"`
-	Password       TemplateField `yaml:"password,omitempty"`
-	Password2      TemplateField `yaml:"password2,omitempty"`
-	PrivateKeyFile TemplateField `yaml:"privateKeyFile,omitempty"`
-	Token          TemplateField `yaml:"token,omitempty"`
-	CwmpServerAddr string        `yaml:"cwmpServerAddr,omitempty"`
-	Architecture   string        `yaml:"architecure,omitempty"`
+	Addr TemplateField `yaml:"addr,omitempty"`
 }
 
 type TemplateField struct {
 	RawTemplate string `yaml:"rawTemplate"`
 }
 
-// encode TemplateField to YAML data
 func (t TemplateField) MarshalYAML() (interface{}, error) {
 	return t.RawTemplate, nil
 }
 
-// decode YAML data into TemplateField
+func T(raw string) TemplateField {
+	return TemplateField{RawTemplate: raw}
+}
+
 func (t *TemplateField) UnmarshalYAML(data *yaml.Node) error {
 	if data.Kind != yaml.ScalarNode {
 		return errors.New("wrong value type")
 	}
 	t.RawTemplate = data.Value
+	return nil
+}
+
+func (t TemplateField) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
+func (t *TemplateField) UnmarshalText(text []byte) error {
+	t.RawTemplate = string(text)
 	return nil
 }
 
@@ -252,7 +226,10 @@ type CmdContext struct {
 }
 
 func ResetContext() {
-	commandContext = CmdContext{}
+	commandContext = CmdContext{
+		App:   &AppSettings{},
+		Build: &BuildSettings{},
+	}
 }
 
 func GetCmdContext() *CmdContext {
@@ -277,7 +254,7 @@ func evaluateExpressionFunc(visited []string, context any) func(string) string {
 	}
 
 	return func(expr string) string {
-		match := exprRegex.FindStringSubmatch(expr)
+		match := regexDollarExpr.FindStringSubmatch(expr)
 		prefix := match[1]
 		key := match[2]
 		sep1 := match[3]
@@ -338,7 +315,7 @@ func evaluateExpressionFunc(visited []string, context any) func(string) string {
 }
 
 func generateExpressions(input string, visited []string, context any) string {
-	return exprRegex.ReplaceAllStringFunc(input, evaluateExpressionFunc(visited, context))
+	return regexDollarExpr.ReplaceAllStringFunc(input, evaluateExpressionFunc(visited, context))
 }
 
 func NewConfiguration() Settings {

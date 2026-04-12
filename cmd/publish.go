@@ -55,70 +55,28 @@ func doPublishApp(targetName string, wait bool) {
 	}
 
 	switch target.Method {
-	case configuration.PUBLISH_METHOD_LISTEN:
-		handlePublishMethodListen(target, wait)
-	case configuration.PUBLISH_METHOD_PUT:
-		handlePublishMethodPut(target)
-	case configuration.PUBLISH_METHOD_COPY:
-		failOperation("not implemented yet")
-	case configuration.PUBLISH_METHOD_PUSH:
-		handlePublishMethodPush(target)
-	case configuration.PUBLISH_METHOD_REGISTRY:
-		handlePublishMethodRegistry(target, wait)
+	case "listen":
+		serverConfig := configuration.HttpServerEndpoint{}
+		target.Decode(&serverConfig)
+		handleListen(serverConfig, wait)
+	case "put":
+		clientConfig := configuration.HttpClientEndpoint{}
+		target.Decode(&clientConfig)
+		handlePut(clientConfig, artifact)
+	case "push":
+		clientConfig := configuration.HttpClientEndpoint{}
+		target.Decode(&clientConfig)
+		handlePush(clientConfig, artifact)
+	case "registry-v2":
+		serverConfig := configuration.HttpServerEndpoint{}
+		target.Decode(&serverConfig)
+		handleRegistry(serverConfig, wait)
 	default:
-		failOperation(fmt.Sprintf("unknown publish method %v", target.Method))
+		failOperation(fmt.Sprintf("unknown publish method '%v'", target.Method))
 	}
 }
 
-func handlePublishMethodListen(target configuration.PublishTarget, wait bool) {
-	doListen(target, wait)
-}
-
-func handlePublishMethodRegistry(target configuration.PublishTarget, wait bool) {
-	registryURL, err := url.Parse(target.Addr.String())
-	assertOperation("parsing registry url", err)
-
-	hostPort := net.JoinHostPort(registryURL.Hostname(), registryURL.Port())
-	registryServer, err := publish.StartRegistry(hostPort, artifact)
-	if err != nil {
-		failOperation(fmt.Sprintf("failed to start local registry: %v", err))
-	}
-
-	if registryURL.Hostname() == "0.0.0.0" {
-		registryURL.Host = net.JoinHostPort("127.0.0.1", registryURL.Port())
-	}
-
-	err = publish.PushImage(artifact, registryURL, "", false)
-	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
-
-	if wait {
-		waitForInterruptSignal()
-		if err := registryServer.Shutdown(context.Background()); err != nil {
-			fmt.Printf("failed to shutdown registry server: %v", err)
-		}
-	} else {
-		fmt.Printf("Serving %v on %v\n", hostPort, registryURL.String())
-	}
-}
-
-func handlePublishMethodPut(target configuration.PublishTarget) {
-	url, err := publish.AuthenticateHttp(target.Endpoint)
-	assertOperation("performing http authentication", err)
-	doPut(artifact, url, target.Token.String())
-}
-
-func handlePublishMethodPush(target configuration.PublishTarget) {
-	url, err := publish.AuthenticateHttp(target.Endpoint)
-	assertOperation("performing http authentication", err)
-	doPush(artifact, url, target.Token.String())
-}
-
-func doPush(artifact string, url *url.URL, token string) {
-	err = publish.PushImage(artifact, url, token, true)
-	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
-}
-
-func doListen(target configuration.PublishTarget, wait bool) {
+func handleListen(target configuration.HttpServerEndpoint, wait bool) {
 	u, err := url.Parse(target.Addr.String())
 	assertOperation("parsing target url", err)
 
@@ -133,9 +91,53 @@ func doListen(target configuration.PublishTarget, wait bool) {
 	}
 }
 
-func doPut(artifact string, url *url.URL, token string) {
-	if err := publish.HttpPut(artifact, *url, token); err != nil {
+func handlePut(target configuration.HttpClientEndpoint, artifact string) {
+	// TODO: replace this with target.NewHttpClient() method
+	url, err := publish.AuthenticateHttp(target)
+	assertOperation("performing http authentication", err)
+	if err := publish.HttpPut(artifact, *url, target.Token.String()); err != nil {
 		assertOperation(fmt.Sprintf("while uploading file \"%s\" with HTTP(S) PUT", artifact), err)
+	}
+}
+
+func handlePush(target configuration.HttpClientEndpoint, artifact string) {
+	url, err := publish.AuthenticateHttp(target)
+	assertOperation("performing http authentication", err)
+	err = publish.PushImage(artifact, url, target.Token.String(), true)
+	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
+}
+
+func connectableHostPort(host, port string) string {
+	switch host {
+	case "0.0.0.0":
+	case "localhost":
+		return net.JoinHostPort("127.0.0.1", port)
+	}
+	return net.JoinHostPort("127.0.0.1", port)
+}
+
+func handleRegistry(target configuration.HttpServerEndpoint, wait bool) {
+	registryServer, err := publish.StartRegistry(target.Addr.String(), artifact)
+	if err != nil {
+		failOperation(fmt.Sprintf("failed to start local registry: %v", err))
+	}
+
+	if host, port, err := net.SplitHostPort(registryServer.Addr); err != nil {
+		failOperation(fmt.Sprintf("cannot determine registry server addr to connect: %s", err.Error()))
+	} else {
+		// TODO: below is ugly but will be fixed once publish.PushImage() accepts configuration.HttpClientEndpoint
+		url, _ := url.Parse(fmt.Sprintf("https://%s", connectableHostPort(host, port)))
+		err = publish.PushImage(artifact, url, "", false)
+		assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
+	}
+
+	if wait {
+		waitForInterruptSignal()
+		if err := registryServer.Shutdown(context.Background()); err != nil {
+			fmt.Printf("failed to shutdown registry server: %v", err)
+		}
+	} else {
+		fmt.Printf("Serving on %v...\n", registryServer.Addr)
 	}
 }
 

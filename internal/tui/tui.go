@@ -124,12 +124,3 @@ func DisplaySuccessMsg(msg string) {
 	LogNormal(msg)
 	ResetOutputColor(os.Stderr)
 }
-
-func DisplayErrorMsg(msg string) {
-	LogError(msg)
-}
-
-func LogOutData(format string, args ...any) {
-	format += "\n"
-	fmt.Fprintf(os.Stdout, format, args...)
-}
