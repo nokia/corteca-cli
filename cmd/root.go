@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/uuid"
@@ -33,19 +33,19 @@ var (
 )
 
 var (
-	config            configuration.Settings
-	configGlobal      configuration.Settings
-	configSystem      configuration.Settings
-	systemConfigRoot  string
-	userConfigRoot    string
-	projectRoot       string
-	distFolder        string
-	specifiedArtifact string
-	configOverrides   []string
-	templates         map[string]configuration.TemplateInfo
-	appVersion        string
-	skipLocalConfig   bool
-	noRegen           bool
+	config           configuration.Settings
+	configGlobal     configuration.Settings
+	configSystem     configuration.Settings
+	systemConfigRoot string
+	userConfigRoot   string
+	projectRoot      string
+	distFolder       string
+	artifact         string
+	configOverrides  []string
+	templates        map[string]configuration.TemplateInfo
+	appVersion       string
+	skipLocalConfig  bool
+	noRegen          bool
 )
 
 var rootCmd = &cobra.Command{
@@ -206,17 +206,6 @@ func requireProjectContext() {
 	configuration.GetCmdContext().Build = &config.Build
 }
 
-func splitSpecifiedArtifact(specifiedArtifact string) (arch, imgType, path string) {
-	artifactInfo := strings.SplitN(specifiedArtifact, ":", 3)
-	if len(artifactInfo) < 3 || artifactInfo[2] == "" {
-		failOperation("architecture, image type or path to artifact is missing")
-	}
-	if !(filepath.Ext(artifactInfo[2]) == ".gz" || filepath.Ext(artifactInfo[2]) == ".tar") {
-		failOperation("artifact file should be of type \".tar.gz\" or \".tar\"")
-	}
-	return strings.ToLower(artifactInfo[0]), strings.ToLower(artifactInfo[1]), artifactInfo[2]
-}
-
 func getAppNameFromArtifact(artifactPath string) string {
 	artifactName := filepath.Base(artifactPath)
 	splitedArtifactName := strings.SplitN(artifactName, "-", 2)
@@ -229,81 +218,46 @@ func getAppNameFromArtifact(artifactPath string) string {
 }
 
 func requireBuildArtifact() {
-	configuration.GetCmdContext().BuildArtifacts = make(map[string]string)
-
-	if specifiedArtifact != "" {
-		artifactArch, artifactType, artifactPath := splitSpecifiedArtifact(specifiedArtifact)
-		if _, err := os.Stat(artifactPath); errors.Is(err, os.ErrNotExist) {
-			failOperation(fmt.Sprintf("file %s not found", artifactPath))
+	if artifact != "" {
+		if _, err := os.Stat(artifact); errors.Is(err, os.ErrNotExist) {
+			failOperation(fmt.Sprintf("file %s not found", artifact))
 		}
-		configuration.GetCmdContext().BuildArtifacts[artifactArch+"-"+artifactType] = artifactPath
-		distFolder = filepath.Dir(artifactPath)
-		configuration.GetCmdContext().Arch = artifactArch
-		// Set necessary build field for deployment
-		configuration.GetCmdContext().Build = &config.Build
-		configuration.GetCmdContext().Build.Options.OutputType = artifactType
-		// Set necessary app fields for deployment
-		configuration.GetCmdContext().App = &config.App
-
+		distFolder = filepath.Dir(artifact)
+		// If artifact is specified directly, we attempt to extract App.Name
+		// and DUID from the artifact filename, if not already set in the
+		// configuration. This is to allow users to specify an artifact without
+		// having to set these values explicitly, as they are required for
+		// publishing.
 		if skipLocalConfig || len(configuration.GetCmdContext().App.DUID) == 0 {
-			configuration.GetCmdContext().App.DUID = generateDUID(artifactPath)
+			configuration.GetCmdContext().App.DUID = generateDUID(artifact)
 		}
 		if skipLocalConfig || len(configuration.GetCmdContext().App.Name) == 0 {
-			configuration.GetCmdContext().App.Name = getAppNameFromArtifact(artifactPath)
+			configuration.GetCmdContext().App.Name = getAppNameFromArtifact(artifact)
 		}
-		return
-	}
-	requireProjectContext()
-
-	distFolder = filepath.Join(projectRoot, distFolderName)
-
-	rootfsPattern := filepath.Join(distFolder, fmt.Sprintf("%v*-rootfs.tar.gz", config.App.Name))
-	ociPattern := filepath.Join(distFolder, fmt.Sprintf("%v*-oci.tar", config.App.Name))
-
-	rootfsFiles, _ := filepath.Glob(rootfsPattern)
-	ociFiles, _ := filepath.Glob(ociPattern)
-
-	// Compile a common regular expression to extract the CPU architecture from the filename.
-	commonArchRegex := regexp.MustCompile(fmt.Sprintf(`^%s-%s-([^-]+)-(rootfs|oci)\.(tar\.gz|tar)$`, regexp.QuoteMeta(config.App.Name), regexp.QuoteMeta(config.App.Version)))
-	matchArchitectures(commonArchRegex, rootfsFiles, "rootfs")
-	matchArchitectures(commonArchRegex, ociFiles, "oci")
-
-	if len(configuration.GetCmdContext().BuildArtifacts) == 0 {
-		failOperation("no build artifacts found")
-	}
-}
-
-func matchArchitectures(archRegex *regexp.Regexp, distFiles []string, artifactType string) {
-	for _, distFile := range distFiles {
-		filename := filepath.Base(distFile)
-		matches := archRegex.FindStringSubmatch(filename)
-
-		// If the filename contains a CPU architecture, process it.
-		if len(matches) < 2 {
-			continue
+	} else {
+		requireProjectContext()
+		distFolder = filepath.Join(projectRoot, distFolderName)
+		var buildArtifacts []string
+		patterns := []string{"*.tar.gz", "*.tar", "*.zip"}
+		for _, pattern := range patterns {
+			files, _ := filepath.Glob(filepath.Join(distFolder, pattern))
+			buildArtifacts = append(buildArtifacts, files...)
 		}
-		cpuArch := matches[1]
-		if curArtifactName, ok := configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType]; ok {
-			curArtifactInfo, err := os.Stat(curArtifactName)
+
+		if len(buildArtifacts) == 0 {
+			failOperation("no build artifacts found")
+		} else if len(buildArtifacts) > 1 {
+			var err error
+			slices.Sort(buildArtifacts)
+			artifact, err = tui.PromptForSelection("Select artifact to publish", buildArtifacts, buildArtifacts[0])
 			if err != nil {
-				failOperation(fmt.Sprintf("stating artifact %s failed: %v", curArtifactName, err))
+				failOperation("artifact selection cancelled")
 			}
-
-			distFileInfo, err := os.Stat(distFile)
-			if err != nil {
-				failOperation(fmt.Sprintf("stating artifact %s failed: %v", distFile, err))
-			}
-
-			// Update the selection if the new candidate is more recent and continue the loop
-			if distFileInfo.ModTime().After(curArtifactInfo.ModTime()) {
-				configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType] = distFile
-			}
-
-			continue
+		} else {
+			artifact = buildArtifacts[0]
 		}
-		configuration.GetCmdContext().BuildArtifacts[cpuArch+"-"+artifactType] = distFile
-		configuration.GetCmdContext().Arch = cpuArch
 	}
+	configuration.GetCmdContext().Artifact = artifact
 }
 
 func generateDUID(input string) string {

@@ -235,10 +235,9 @@ func (t *DictType[T]) UnmarshalYAML(data *yaml.Node) error {
 var commandContext CmdContext
 
 type CmdContext struct {
-	App            *AppSettings      `yaml:"app,omitempty"`
-	Arch           string            `yaml:"arch,omitempty"`
-	BuildArtifacts map[string]string `yaml:"buildArtifacts,omitempty"`
-	Device         struct {
+	App    *AppSettings `yaml:"app,omitempty"`
+	Arch   string       `yaml:"arch,omitempty"`
+	Device struct {
 		DeviceConfig `yaml:",omitempty,inline"`
 		Name         string `yaml:"name,omitempty"`
 	} `yaml:"device,omitempty"`
@@ -246,10 +245,10 @@ type CmdContext struct {
 		PublishTarget `yaml:",omitempty,inline"`
 		Name          string `yaml:"name,omitempty"`
 	} `yaml:"publish,omitempty"`
-	Platform      string            `yaml:"platform,omitempty"`
-	Build         *BuildSettings    `yaml:"build,omitempty"`
-	BuildArtifact string            `yaml:"buildArtifact,omitempty"`
-	Env           map[string]string `yaml:"env,omitempty"`
+	Platform string            `yaml:"platform,omitempty"`
+	Build    *BuildSettings    `yaml:"build,omitempty"`
+	Artifact string            `yaml:"artifact,omitempty"`
+	Env      map[string]string `yaml:"env,omitempty"`
 }
 
 func ResetContext() {

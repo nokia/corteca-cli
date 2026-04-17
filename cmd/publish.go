@@ -26,42 +26,29 @@ const (
 )
 
 var publishCmd = &cobra.Command{
-	Use:               "publish TARGET [ARCH]",
+	Use:               "publish TARGET",
 	Short:             "Publish application artifact(s) to specified target, optionally filtering by architecture.",
 	Long:              "Publish application artifact(s) to specified target, optionally filtering by architecture.",
 	Example:           "",
-	Args:              cobra.RangeArgs(1, 2),
+	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: validPublishArgsFunc,
 	Run: func(cmd *cobra.Command, args []string) {
 		targetName := args[0]
-		arch := ""
-
-		if len(args) > 1 {
-			arch = args[1]
-		}
-
-		doPublishApp(targetName, arch, true)
+		doPublishApp(targetName, true)
 	},
 }
 
 func init() {
 	publishCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
-	publishCmd.PersistentFlags().StringVarP(&specifiedArtifact, "artifact", "a", "", "Specify an artifact in the form of '[ARCH]:imagetype:/path/to/file', architecture=(aarch64|armv7l|x86_64), imagetype=(rootfs|oci)")
+	publishCmd.PersistentFlags().StringVarP(&artifact, "artifact", "a", "", "Specify the path to a an artifact to publish")
 	publishCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"tar.gz"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(publishCmd)
 }
 
-func doPublishApp(targetName string, arch string, wait bool) {
+func doPublishApp(targetName string, wait bool) {
 	requireBuildArtifact()
-	if specifiedArtifact != "" {
-		if arch != "" && configuration.GetCmdContext().Arch != arch {
-			fmt.Printf("Warning: differing architectures [%s,%s] were specified!\nPublishing %s...", arch, configuration.GetCmdContext().Arch, configuration.GetCmdContext().Arch)
-		}
-		arch = configuration.GetCmdContext().Arch
-	}
-
 	target, found := config.Publish[targetName]
 	if !found {
 		failOperation(fmt.Sprintf("publish target '%s' not found", targetName))
@@ -71,13 +58,13 @@ func doPublishApp(targetName string, arch string, wait bool) {
 	case configuration.PUBLISH_METHOD_LISTEN:
 		handlePublishMethodListen(target, wait)
 	case configuration.PUBLISH_METHOD_PUT:
-		handlePublishMethodPut(target, arch)
+		handlePublishMethodPut(target)
 	case configuration.PUBLISH_METHOD_COPY:
 		failOperation("not implemented yet")
 	case configuration.PUBLISH_METHOD_PUSH:
-		handlePublishMethodPush(target, arch)
+		handlePublishMethodPush(target)
 	case configuration.PUBLISH_METHOD_REGISTRY:
-		handlePublishMethodRegistry(target, arch, wait)
+		handlePublishMethodRegistry(target, wait)
 	default:
 		failOperation(fmt.Sprintf("unknown publish method %v", target.Method))
 	}
@@ -87,12 +74,7 @@ func handlePublishMethodListen(target configuration.PublishTarget, wait bool) {
 	doListen(target, wait)
 }
 
-func handlePublishMethodRegistry(target configuration.PublishTarget, arch string, wait bool) {
-	artifact, found := getArtifact(arch, ociSuffix)
-	if !found {
-		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, ociSuffix))
-	}
-
+func handlePublishMethodRegistry(target configuration.PublishTarget, wait bool) {
 	registryURL, err := url.Parse(target.Addr.String())
 	assertOperation("parsing registry url", err)
 
@@ -119,36 +101,21 @@ func handlePublishMethodRegistry(target configuration.PublishTarget, arch string
 	}
 }
 
-func handlePublishMethodPut(target configuration.PublishTarget, arch string) {
-	artifact, found := getArtifact(arch, rootfsSuffix)
-	if !found {
-		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, rootfsSuffix))
-	}
+func handlePublishMethodPut(target configuration.PublishTarget) {
 	url, err := publish.AuthenticateHttp(target.Endpoint)
 	assertOperation("performing http authentication", err)
 	doPut(artifact, url, target.Token.String())
 }
 
-func handlePublishMethodPush(target configuration.PublishTarget, arch string) {
-	artifact, found := getArtifact(arch, ociSuffix)
-	if !found {
-		failOperation(fmt.Sprintf(artifactNotFoundMessage, arch, ociSuffix))
-	}
+func handlePublishMethodPush(target configuration.PublishTarget) {
 	url, err := publish.AuthenticateHttp(target.Endpoint)
 	assertOperation("performing http authentication", err)
-
 	doPush(artifact, url, target.Token.String())
 }
 
 func doPush(artifact string, url *url.URL, token string) {
 	err = publish.PushImage(artifact, url, token, true)
 	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
-}
-
-func getArtifact(arch, suffix string) (string, bool) {
-	artifactKey := fmt.Sprintf("%s-%s", arch, suffix)
-	artifactFilename, found := configuration.GetCmdContext().BuildArtifacts[artifactKey]
-	return artifactFilename, found
 }
 
 func doListen(target configuration.PublishTarget, wait bool) {
