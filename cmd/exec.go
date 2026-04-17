@@ -6,7 +6,6 @@ import (
 	"corteca/internal/platform"
 	"corteca/internal/tui"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -26,22 +25,17 @@ var logFile string
 var publishTargetName string
 
 func init() {
-	execCmd.PersistentFlags().StringVarP(&specifiedArtifact, "artifact", "a", "", "Specify an artifact in the form of 'architecture:imagetype:/path/to/file', architecture=(aarch64|armv7l|x86_64), imagetype=(rootfs|oci)")
 	execCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"tar.gz, tar"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(execCmd)
 	execCmd.PersistentFlags().StringVar(&logFile, "logfile", platform.DefaultLog, "Specify where SSH logs will be stored")
 	execCmd.PersistentFlags().StringVar(&publishTargetName, "publish", "", "Publish application artifact to specified target")
+	execCmd.PersistentFlags().StringVarP(&artifact, "artifact", "a", "", "Specify the path to a an artifact to publish")
 	execCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
 }
 
 func doExecSequence(sequence, deviceName string) {
-	if _, exists := config.Sequences[sequence]; !exists {
-		failOperation(fmt.Sprintf("Sequence '%s' not supported yet", sequence))
-	}
-
-	requireBuildArtifact()
 	var found bool
 	configuration.GetCmdContext().Device.Name = deviceName
 	configuration.GetCmdContext().Device.DeviceConfig, found = config.Devices[deviceName]
@@ -71,23 +65,16 @@ func doExecSequence(sequence, deviceName string) {
 		}
 	}
 
-	artifactKey := fmt.Sprintf("%s-%s", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Build.Options.OutputType)
-	buildArtifact, ok := configuration.GetCmdContext().BuildArtifacts[artifactKey]
-	if !ok {
-		failOperation(fmt.Sprintf("no build artifact present for target architecture \"%s\"", configuration.GetCmdContext().Arch))
-	}
-
-	configuration.GetCmdContext().BuildArtifact = filepath.Base(buildArtifact)
-	configuration.GetCmdContext().Publish.PublishTarget = config.Publish[publishTargetName]
-	configuration.GetCmdContext().Publish.Name = publishTargetName
 	// publish build artifact(s) if a publish target has been specified in the deploy source
 	if publishTargetName != "" {
+		configuration.GetCmdContext().Publish.PublishTarget = config.Publish[publishTargetName]
+		configuration.GetCmdContext().Publish.Name = publishTargetName
 		tui.LogNormal("Publishing \"%s\" artifact to \"%s\"", configuration.GetCmdContext().Arch, configuration.GetCmdContext().Publish.Name)
-		doPublishApp(configuration.GetCmdContext().Publish.Name, configuration.GetCmdContext().Arch, false)
+		doPublishApp(configuration.GetCmdContext().Publish.Name, false)
 	}
 
 	// execute the sequence
-	tui.LogNormal("Deploying %s...", buildArtifact)
+	tui.LogNormal("Executing '%s' sequence on device '%s'...", sequence, deviceName)
 	if err = config.Sequences.Execute(dispatcher, sequence); err != nil {
 		tui.LogError("Error while %v: %v", "executing "+sequence+" sequence", err.Error())
 		return
