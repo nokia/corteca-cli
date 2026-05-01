@@ -14,13 +14,12 @@ import (
 )
 
 func execDocker(args ...string) error {
-	// TODO: check if stdout is a tty first
-	tui.SetOutputColor(tui.CBlue)
+	tui.SetOutputColor(tui.CBlue, os.Stderr)
 	cmd := exec.Command("docker", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
-	tui.ResetOutputColor()
+	tui.ResetOutputColor(os.Stdout)
 	return err
 }
 

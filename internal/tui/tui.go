@@ -7,6 +7,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/pterm/pterm"
@@ -37,7 +38,7 @@ var (
 
 // If no-color flag is set or no terminal found then remove colored output
 func DefineOutputColor() {
-	if DisableColoredOutput || !(term.IsTerminal(int(os.Stdout.Fd())) || term.IsTerminal(int(os.Stderr.Fd()))) {
+	if DisableColoredOutput || !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))) {
 		DisableColoredOutput = true
 		pterm.DisableColor()
 	}
@@ -49,21 +50,21 @@ func LogNormal(format string, args ...any) {
 }
 
 func LogError(format string, args ...any) {
-	SetOutputColor(CRed)
+	SetOutputColor(CRed, os.Stderr)
 	format += "\n"
 	fmt.Fprintf(os.Stderr, format, args...)
-	ResetOutputColor()
+	ResetOutputColor(os.Stderr)
 }
 
-func SetOutputColor(colorSeq string) {
+func SetOutputColor(colorSeq string, out io.Writer) {
 	if !DisableColoredOutput {
-		fmt.Fprintf(os.Stderr, colorSeq)
+		fmt.Fprintf(out, colorSeq)
 	}
 }
 
-func ResetOutputColor() {
+func ResetOutputColor(out io.Writer) {
 	if !DisableColoredOutput {
-		fmt.Fprintf(os.Stderr, CsReset)
+		fmt.Fprintf(out, CsReset)
 	}
 }
 
@@ -137,9 +138,9 @@ func PromptForProgress(f afero.File, label string) (*ProgressBar, error) {
 }
 
 func DisplaySuccessMsg(msg string) {
-	SetOutputColor(CGreen)
+	SetOutputColor(CGreen, os.Stderr)
 	LogNormal(msg)
-	ResetOutputColor()
+	ResetOutputColor(os.Stderr)
 }
 
 func DisplayErrorMsg(msg string) {
