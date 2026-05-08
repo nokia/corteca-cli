@@ -11,7 +11,6 @@ import (
 	"os"
 
 	"github.com/pterm/pterm"
-	"github.com/spf13/afero"
 	"golang.org/x/term"
 )
 
@@ -91,50 +90,33 @@ func PromptForPassword(label string) (string, error) {
 	return result, err
 }
 
+type ProgressUpdate struct {
+	Current int64
+	Total   int64
+}
+
+func PromptForProgress(label string) chan<- ProgressUpdate {
+	const max = 100
+	ch := make(chan ProgressUpdate, 8)
+	bar, _ := pterm.DefaultProgressbar.
+		WithTitle(label).
+		WithTotal(max).
+		WithShowCount(false).
+		WithShowElapsedTime(false).
+		Start()
+	go func() {
+		for update := range ch {
+			current := int((update.Current * int64(max)) / update.Total)
+			diff := current - bar.Current
+			bar.Add(diff)
+		}
+		bar.Stop()
+	}()
+	return ch
+}
+
 func DisplayHelpMsg(msg string) {
 	pterm.ThemeDefault.InfoMessageStyle.Println(msg)
-}
-
-type ProgressBar struct {
-	file    afero.File
-	progBar *pterm.ProgressbarPrinter
-}
-
-func (pb *ProgressBar) Read(p []byte) (int, error) {
-	n, err := pb.file.Read(p)
-
-	if err != nil {
-		return n, err
-	}
-
-	pb.progBar.Add(n)
-
-	return n, nil
-}
-
-func (pb *ProgressBar) Close() {
-	pb.progBar.Stop()
-}
-
-func PromptForProgress(f afero.File, label string) (*ProgressBar, error) {
-
-	fileInfo, err := f.Stat()
-
-	if err != nil {
-		return nil, err
-	}
-
-	pb := ProgressBar{
-		file:    f,
-		progBar: pterm.DefaultProgressbar.WithTotal(int(fileInfo.Size())).WithTitle(label).WithMaxWidth(-1).WithCurrent(0),
-	}
-
-	pb.progBar, err = pb.progBar.Start()
-	if err != nil {
-		return nil, err
-	}
-
-	return &pb, nil
 }
 
 func DisplaySuccessMsg(msg string) {

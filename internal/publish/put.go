@@ -9,6 +9,7 @@ import (
 	"corteca/internal/tui"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -22,6 +23,36 @@ const (
 	authHttpBearerName = "bearer"
 	authHttpDigestName = "digest"
 )
+
+type PutReader struct {
+	file  afero.File
+	ch    chan<- tui.ProgressUpdate
+	total int64
+}
+
+func (r *PutReader) Read(p []byte) (int, error) {
+	n, err := r.file.Read(p)
+	if err != nil {
+		return n, err
+	}
+	pos, err := r.file.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return n, err
+	}
+	if r.total == 0 {
+		if r.total, err = r.file.Seek(0, io.SeekEnd); err != nil {
+			return n, err
+		}
+		if _, err = r.file.Seek(pos, io.SeekStart); err != nil {
+			return n, err
+		}
+	}
+	r.ch <- tui.ProgressUpdate{
+		Current: pos,
+		Total:   r.total,
+	}
+	return n, err
+}
 
 func HttpPut(filePath string, url url.URL, token string) error {
 
@@ -39,12 +70,10 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	}
 	defer file.Close()
 
-	progressReader, err := tui.PromptForProgress(file, fmt.Sprintf("Uploading %s", fileName))
-	if err != nil {
-		return err
-	}
+	prog := tui.PromptForProgress(fmt.Sprintf("Uploading %s", fileName))
+	defer close(prog)
 
-	req, err := http.NewRequest("PUT", url.String(), progressReader)
+	req, err := http.NewRequest("PUT", url.String(), &PutReader{file: file, ch: prog})
 	if err != nil {
 		return err
 	}
@@ -70,7 +99,6 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	}
 
 	defer resp.Body.Close()
-	progressReader.Close()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("server returned non-successful status: %s", resp.Status)
