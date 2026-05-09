@@ -8,6 +8,12 @@ import (
 	"github.com/icholy/digest"
 )
 
+const (
+	BasicClientAuth  = "basic"
+	BearerClientAuth = "bearer"
+	DigestClientAuth = "digest"
+)
+
 type HttpServerEndpoint struct {
 	Endpoint    `yaml:",inline"`
 	Certificate TemplateField `yaml:"certificate"`
@@ -15,11 +21,12 @@ type HttpServerEndpoint struct {
 }
 
 type HttpClientEndpoint struct {
-	Endpoint `yaml:",inline"`
-	Auth     string        `yaml:"auth,omitempty"`
-	Username TemplateField `yaml:"username,omitempty"`
-	Password TemplateField `yaml:"password,omitempty"`
-	Token    TemplateField `yaml:"token,omitempty"`
+	Endpoint            `yaml:",inline"`
+	Auth                string        `yaml:"auth,omitempty"`
+	Username            TemplateField `yaml:"username,omitempty"`
+	Password            TemplateField `yaml:"password,omitempty"`
+	Token               TemplateField `yaml:"token,omitempty"`
+	SkipTLSVerification bool          `yaml:"skipTLSVerification"`
 }
 
 // transport to use basic authentication
@@ -74,11 +81,11 @@ func (ep *HttpClientEndpoint) NewHttpClient() (*http.Client, error) {
 	}
 	client := &http.Client{}
 	switch strings.ToLower(ep.Auth) {
-	case "basic":
+	case BasicClientAuth:
 		client.Transport = basic
-	case "bearer":
+	case BearerClientAuth:
 		client.Transport = bearer
-	case "digest":
+	case DigestClientAuth:
 		client.Transport = &digest.Transport{Username: username, Password: password}
 	case "":
 		// if no explicit auth method specified, prioritize bearer
