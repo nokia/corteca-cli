@@ -1,13 +1,16 @@
 package publish
 
 import (
+	"compress/gzip"
+	"corteca/internal/configuration"
 	"corteca/internal/fsutil"
 	"corteca/internal/tui"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
-	"path/filepath"
+	"os"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -15,111 +18,113 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/layout"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
-	"github.com/pterm/pterm"
+	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
-// TODO: replace addr Url type with configuration.HttpClientEndpoint
-func PushImage(imagePath string, addr *url.URL, token string, withProgress bool) error {
-	distDir := filepath.Dir(imagePath)
-	extractedImagePath := strings.TrimSuffix(imagePath, ".tar")
-	extractedOCIName := filepath.Base(extractedImagePath)
+type gzipReadCloser struct {
+	*gzip.Reader
+	file *os.File
+}
 
-	if err := fsutil.ExtractTarball(imagePath, extractedImagePath); err != nil {
-		return fmt.Errorf("failed to extract OCI image: %w", err)
-	}
-
-	versionRef, err := name.NewTag(fmt.Sprintf("%s%s", addr.Host, addr.Path))
-	if err != nil {
-		return fmt.Errorf("failed to parse image reference: %w", err)
-	}
-
-	index, err := layout.ImageIndexFromPath(extractedImagePath)
-	if err != nil {
-		return fmt.Errorf("failed to read image index from path: %w", err)
-	}
-
-	manifest, err := index.IndexManifest()
-	if err != nil {
-		return fmt.Errorf("failed to get index manifest: %w", err)
-	}
-
-	var img v1.Image
-	for _, desc := range manifest.Manifests {
-		image, err := index.Image(desc.Digest)
+func GzipOpener(path string) tarball.Opener {
+	return func() (io.ReadCloser, error) {
+		f, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("failed to get image: %w", err)
+			return nil, err
 		}
-		img = image
-		break
+
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			f.Close()
+			return nil, err
+		}
+
+		// combine both closers
+		return &gzipReadCloser{
+			Reader: gz,
+			file:   f,
+		}, nil
 	}
+}
 
-	transport := remote.WithTransport(&http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true,
-		},
-	})
+func (g *gzipReadCloser) Close() error {
+	if err := g.Reader.Close(); err != nil {
+		return err
+	}
+	return g.file.Close()
+}
 
-	auth, err := getAuthenticator(addr, token)
+func PushImage(tarballPath string, target *configuration.HttpClientEndpoint, withProgress bool) error {
+	// create image tag from URL
+	url, err := url.Parse(target.Addr.String())
 	if err != nil {
-		return fmt.Errorf("failed to get authenticator: %w", err)
+		return err
+	}
+	tagOpts := []name.Option{name.StrictValidation}
+	if url.Scheme == "http" {
+		tagOpts = append(tagOpts, name.Insecure)
+	}
+	tag, err := name.NewTag(strings.ToLower(url.Host+url.Path), tagOpts...)
+	if err != nil {
+		return err
 	}
 
-	options := []remote.Option{
-		remote.WithAuth(auth),
-		transport,
+	// get image from tarball
+	tmp, err := os.MkdirTemp("", "corteca_image_")
+	if err != nil {
+		return fmt.Errorf("cannot create tmp folder: %w", err)
+	}
+	if err := fsutil.ExtractTarball(tarballPath, tmp); err != nil {
+		return fmt.Errorf("cannot extract %s to %s: %w", tarballPath, tmp, err)
+	}
+	lp, err := layout.FromPath(tmp)
+	if err != nil {
+		return fmt.Errorf("cannot open OCI layout from %s: %w", tmp, err)
+	}
+	idx, err := lp.ImageIndex()
+	if err != nil {
+		return fmt.Errorf("cannot open index from %s: %w", tmp, err)
+	}
+	im, err := idx.IndexManifest()
+	if err != nil {
+		return fmt.Errorf("cannot open index manifest from %s: %w", tmp, err)
+	}
+	image, err := idx.Image(im.Manifests[0].Digest)
+	if err != nil {
+		return fmt.Errorf("cannot open image from %s: %w", tmp, err)
 	}
 
+	// set client options
+	clientOpts := []remote.Option{}
+	if target.SkipTLSVerification {
+		clientOpts = append(clientOpts, remote.WithTransport(&http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}))
+	}
+	switch target.Auth {
+	case configuration.BasicClientAuth:
+		clientOpts = append(clientOpts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{Username: target.Username.String(), Password: target.Password.String()})))
+	case configuration.BearerClientAuth:
+		clientOpts = append(clientOpts, remote.WithAuth(authn.FromConfig(authn.AuthConfig{RegistryToken: target.Token.String()})))
+	}
 	if withProgress {
 		updates := make(chan v1.Update, 8)
-		progressBar := initializeProgressBar()
-		go handleProgressUpdates(progressBar, updates)
-		options = append(options, remote.WithProgress(updates))
+		prog := tui.PromptForProgress(fmt.Sprintf("Pushing %s", tag.String()))
+		defer close(prog)
+		clientOpts = append(clientOpts, remote.WithProgress(updates))
+		go func() {
+			for update := range updates {
+				prog <- tui.ProgressUpdate{Current: update.Complete, Total: update.Total}
+			}
+		}()
 	}
 
-	if err := remote.Write(versionRef, img, options...); err != nil {
+	if err := remote.Write(tag, image, clientOpts...); err != nil {
 		return fmt.Errorf("failed to push image manifest to registry: %w", err)
 	}
-
-	if err := fsutil.RemoveFilesFromFolder(distDir, []string{extractedOCIName}); err != nil {
-		return fmt.Errorf("failed to clean up extracted files: %w", err)
-	}
-	tui.DisplaySuccessMsg(fmt.Sprintf("Pushed image '%v' as '%v'\n", imagePath, versionRef.Name()))
+	tui.DisplaySuccessMsg(fmt.Sprintf("Pushed image %s to %s", tarballPath, tag.String()))
 	return nil
-}
-
-func handleProgressUpdates(bar *pterm.ProgressbarPrinter, updates chan v1.Update) {
-	var lastComplete int64
-	var totalSizeSet bool
-	for update := range updates {
-		if !totalSizeSet && update.Total > 0 {
-			bar.Total = int(update.Total)
-			totalSizeSet = true
-		}
-		progress := int(update.Complete - lastComplete)
-		bar.Add(progress)
-		lastComplete = update.Complete
-		//pterm.Debug.Println(fmt.Sprintf("Progress: %d/%d", update.Complete, update.Total))
-	}
-	bar.Stop()
-}
-
-func getAuthenticator(registryURL *url.URL, token string) (authn.Authenticator, error) {
-	if token != "" {
-		return &authn.Bearer{
-			Token: token,
-		}, nil
-	} else {
-		// registryURL should always include a valid credentials or authentication token
-		password, _ := registryURL.User.Password()
-		return authn.FromConfig(authn.AuthConfig{
-			Username: registryURL.User.Username(),
-			Password: password,
-		}), nil
-	}
-}
-
-func initializeProgressBar() *pterm.ProgressbarPrinter {
-	bar, _ := pterm.DefaultProgressbar.WithTotal(100).WithTitle("Pushing").Start()
-	return bar
 }

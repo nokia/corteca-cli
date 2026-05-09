@@ -38,7 +38,7 @@ func AnnotateRootFS(dest string, appSettings configuration.AppSettings, buildMet
 
 func PackageOCI(buildDir, distPath, arch, platform, rootfsTarGzPath string, appSettings configuration.AppSettings) error {
 	ociDirName := fmt.Sprintf("%s-%s-%s-oci", appSettings.Name, appSettings.Version, arch)
-	ociTarName := fmt.Sprintf("%s-%s-%s-oci.tar", appSettings.Name, appSettings.Version, arch)
+	ociTarName := fmt.Sprintf("%s-%s-%s-oci.tar.gz", appSettings.Name, appSettings.Version, arch)
 	ociDirPath := filepath.Join(buildDir, ociDirName)
 	ociTarPath := filepath.Join(distPath, ociTarName)
 

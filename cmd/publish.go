@@ -8,8 +8,10 @@ import (
 	"context"
 	"corteca/internal/configuration"
 	"corteca/internal/publish"
+	"corteca/internal/tui"
 	"fmt"
 	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -36,6 +38,12 @@ var publishCmd = &cobra.Command{
 		targetName := args[0]
 		doPublishApp(targetName, true)
 	},
+}
+
+type RegistryConfig struct {
+	configuration.HttpServerEndpoint `yaml:",inline"`
+	Namespace                        configuration.TemplateField `yaml:"namespace"`
+	Reference                        configuration.TemplateField `yaml:"reference"`
 }
 
 func init() {
@@ -68,9 +76,9 @@ func doPublishApp(targetName string, wait bool) {
 		target.Decode(&clientConfig)
 		handlePush(clientConfig, artifact)
 	case "registry-v2":
-		serverConfig := configuration.HttpServerEndpoint{}
-		target.Decode(&serverConfig)
-		handleRegistry(serverConfig, wait)
+		registryConfig := RegistryConfig{}
+		target.Decode(&registryConfig)
+		handleRegistry(registryConfig, wait)
 	default:
 		failOperation(fmt.Sprintf("unknown publish method '%v'", target.Method))
 	}
@@ -101,33 +109,48 @@ func handlePut(target configuration.HttpClientEndpoint, artifact string) {
 }
 
 func handlePush(target configuration.HttpClientEndpoint, artifact string) {
-	url, err := publish.AuthenticateHttp(target)
-	assertOperation("performing http authentication", err)
-	err = publish.PushImage(artifact, url, target.Token.String(), true)
+	err = publish.PushImage(artifact, &target, true)
 	assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
 }
 
-func connectableHostPort(host, port string) string {
-	switch host {
-	case "0.0.0.0":
-	case "localhost":
-		return net.JoinHostPort("127.0.0.1", port)
+func connectableServerURL(server *http.Server) (*url.URL, error) {
+	u := url.URL{}
+	// determine schema
+	if server.TLSConfig != nil {
+		u.Scheme = "https"
+	} else {
+		u.Scheme = "http"
 	}
-	return net.JoinHostPort("127.0.0.1", port)
+	// determine host
+	host, port, err := net.SplitHostPort(server.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine host/port of server address '%s'", server.Addr)
+	}
+	switch host {
+	case "0.0.0.0", "localhost":
+		u.Host = net.JoinHostPort("127.0.0.1", port)
+	default:
+		u.Host = net.JoinHostPort(host, port)
+	}
+	return &u, nil
 }
 
-func handleRegistry(target configuration.HttpServerEndpoint, wait bool) {
-	registryServer, err := publish.StartRegistry(target.Addr.String(), artifact)
+func handleRegistry(config RegistryConfig, wait bool) {
+	registryServer, err := publish.StartRegistry(config.HttpServerEndpoint)
 	if err != nil {
 		failOperation(fmt.Sprintf("failed to start local registry: %v", err))
 	}
 
-	if host, port, err := net.SplitHostPort(registryServer.Addr); err != nil {
-		failOperation(fmt.Sprintf("cannot determine registry server addr to connect: %s", err.Error()))
+	if url, err := connectableServerURL(registryServer); err != nil {
+		failOperation(err.Error())
 	} else {
-		// TODO: below is ugly but will be fixed once publish.PushImage() accepts configuration.HttpClientEndpoint
-		url, _ := url.Parse(fmt.Sprintf("https://%s", connectableHostPort(host, port)))
-		err = publish.PushImage(artifact, url, "", false)
+		url.Path = fmt.Sprintf("/%s:%s", config.Namespace.String(), config.Reference.String())
+		tui.LogNormal("Publishing artifact on: %s", url.String())
+		ep := configuration.Endpoint{Addr: configuration.T(url.String())}
+		err = publish.PushImage(artifact, &configuration.HttpClientEndpoint{
+			Endpoint:            ep,
+			SkipTLSVerification: true,
+		}, false)
 		assertOperation(fmt.Sprintf("pushing image %s to registry", artifact), err)
 	}
 

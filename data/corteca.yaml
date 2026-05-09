@@ -83,7 +83,6 @@ sequences:
 # each entry must be in the form of:
 #   <alias>:
 #       method: <method>                    # one of `listen`, `put`, `copy`, `push`, `registry-v2`
-#       publicURL: <public-url>             # public url of endpoint
 #       addr: <url>                         # url of endpoint
 #       auth: <type>                        # authentication type; one of `basic`, `bearer`, `digest`
 #       username: <username>                # username for registry authentication
@@ -95,7 +94,6 @@ publish:
     local:
         addr: http://0.0.0.0:8080
         method: listen
-        publicURL: http://172.17.0.1:8080
 
     #   webserver:
     #       addr: https://upload.example.com/artifacts/
@@ -103,9 +101,11 @@ publish:
     #       method: put
 
     localRegistry:
-        addr: http://0.0.0.0:8080
+        addr: 0.0.0.0:8080
         method: registry-v2
-        publicURL: http://127.0.0.1:8080 # Should be changed
+        namespace: aarch64/${.app.name}
+        reference: ${.app.version}
+    
 
     # remoteRegistry:
     #     addr: https://corteca-registry.int.net.nokia.com
