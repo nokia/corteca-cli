@@ -1,8 +1,8 @@
 package publish
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"net/http"
 
 	"github.com/google/go-containerregistry/pkg/registry"

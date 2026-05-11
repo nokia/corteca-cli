@@ -3,9 +3,9 @@
 package device
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/cwmp/messages"
-	"corteca/internal/cwmp/models"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/cwmp/messages"
+	"github.com/nokia/corteca-cli/internal/cwmp/models"
 	"net/url"
 	"strings"
 	"testing"

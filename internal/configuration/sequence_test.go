@@ -6,7 +6,7 @@ package configuration_test
 
 import (
 	"context"
-	"corteca/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/configuration"
 	"errors"
 	"testing"
 	"time"

@@ -3,9 +3,9 @@ package ssh
 import (
 	"bytes"
 	"context"
-	"corteca/internal/configuration"
-	"corteca/internal/device"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/device"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"errors"
 	"fmt"
 	"io"

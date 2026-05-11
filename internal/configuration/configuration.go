@@ -10,10 +10,6 @@
 package configuration
 
 import (
-	specs "corteca/internal/configuration/runtimeSpec"
-	"corteca/internal/configuration/templating"
-	"corteca/internal/fsutil"
-	"corteca/internal/tui"
 	"errors"
 	"fmt"
 	"io"
@@ -26,6 +22,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	specs "github.com/nokia/corteca-cli/internal/configuration/runtimeSpec"
+	"github.com/nokia/corteca-cli/internal/configuration/templating"
+	"github.com/nokia/corteca-cli/internal/fsutil"
+	"github.com/nokia/corteca-cli/internal/tui"
 
 	"github.com/spf13/afero"
 	"github.com/vishvananda/netlink"

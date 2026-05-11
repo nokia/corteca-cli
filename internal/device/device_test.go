@@ -6,8 +6,8 @@ package device_test
 
 import (
 	"context"
-	"corteca/internal/configuration"
-	"corteca/internal/device"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/device"
 	"io"
 	"testing"
 )

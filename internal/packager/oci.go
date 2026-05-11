@@ -5,7 +5,7 @@
 package packager
 
 import (
-	"corteca/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/configuration"
 	"encoding/json"
 	"fmt"
 	"os"

@@ -5,9 +5,9 @@
 package builder
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/fsutil"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/fsutil"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"fmt"
 	"os"
 	"os/exec"

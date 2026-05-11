@@ -5,8 +5,8 @@
 package packager
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/fsutil"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/fsutil"
 	"fmt"
 	"os"
 	"path/filepath"
