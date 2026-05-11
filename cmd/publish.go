@@ -6,9 +6,9 @@ package cmd
 
 import (
 	"context"
-	"corteca/internal/configuration"
-	"corteca/internal/publish"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/publish"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"fmt"
 	"net"
 	"net/http"

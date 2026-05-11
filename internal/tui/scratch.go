@@ -3,7 +3,7 @@
 package main
 
 import (
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"time"
 )
 

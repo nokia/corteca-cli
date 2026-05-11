@@ -5,7 +5,7 @@
 package device
 
 import (
-	"corteca/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/configuration"
 	"fmt"
 	"io"
 	"net/url"

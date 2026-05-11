@@ -5,8 +5,8 @@
 package publish
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"errors"
 	"fmt"
 	"io"

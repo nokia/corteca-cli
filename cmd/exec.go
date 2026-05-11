@@ -1,12 +1,12 @@
 package cmd
 
 import (
-	"corteca/internal/configuration"
-	"corteca/internal/device"
-	_ "corteca/internal/device/cwmp"
-	_ "corteca/internal/device/ssh"
-	"corteca/internal/platform"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/device"
+	_ "github.com/nokia/corteca-cli/internal/device/cwmp"
+	_ "github.com/nokia/corteca-cli/internal/device/ssh"
+	"github.com/nokia/corteca-cli/internal/platform"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"fmt"
 	"io"
 	"os"

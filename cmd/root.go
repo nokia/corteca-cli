@@ -5,10 +5,10 @@
 package cmd
 
 import (
-	"corteca/internal/configuration"
-	specs "corteca/internal/configuration/runtimeSpec"
-	"corteca/internal/platform"
-	"corteca/internal/tui"
+	"github.com/nokia/corteca-cli/internal/configuration"
+	specs "github.com/nokia/corteca-cli/internal/configuration/runtimeSpec"
+	"github.com/nokia/corteca-cli/internal/platform"
+	"github.com/nokia/corteca-cli/internal/tui"
 	"errors"
 	"fmt"
 	"os"
