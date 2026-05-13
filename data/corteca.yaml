@@ -1,134 +1,34 @@
-# Application settings
-# ---------------------------
-# These will be defined per project scope. Any modifications you make to the
-# global app settings will be picked up as defaults when creating a new
-# application.
-#
-# app:
-#     name: <test-app>            # single word identifier which cannot contain
-#                                 # spaces (will be used for artifact naming)
-#     author: <author>            # application author (will be used for Corteca cloud metadata)
-#     version: <version>          # application version (will be used for Corteca cloud metadata)
-#     duid: <DUID>                # will be generated automatically from FQDN,
-#                                 # and will be used to uniquely identify the application
-#     env:                        # custom environment variables inside app container
-#           <name>: <value>
-#     dependencies:
-#       compile:                  # dependencies needed during compile
-#         - <library1>
-#         - <library2>
-#        runtime:                 # dependencies needed during runtime
-#         - <runtime-lib1>
-#         - <runtime-lib2>
-#     entrypoint:
-
-# Template Files
-# ---------------------------
-# A set of template files to render and send to desired destination.
-# These can be defined per project scope.
-# Each entry must be in the form of:
-#templates:
-#   <path/to/template/file>: <destination/path/to/rendered/file>
-
-# Build settings
-# ---------------------------
-# Build settings; these must exist in the system docker cache under
-# the name specified by the 'image' field below. Perform a `docker pull <image>`
-# and optionally a `docker tag <old-name> <new-name>` to name your images appropriately.
 build:
-    # must contain entries in the form:
-    #   image: <docker-image-name>
-    #   <target-machine>:
-    architectures:
-        armv7l:
-            platform: "linux/arm/v7"
-        aarch64:
-            platform: "linux/arm64"
-        x86_64:
-            platform: "linux/amd64"
-    # default architecture to use when building if none specified
-    default: aarch64
-    options:
-        # rootfs, produces a compressed root filesystem as the build output;
-        # oci, the output is an OCI image;
-        # docker, for docker image output.
-        outputType: oci
-        # If true, generates a container with additional debugging tools
-        # to facilitate troubleshooting during development.
-        debug: false
-        # Do not inherit variables from the host environment (proxies etc)
-        # skipHostEnv: false
-        env:
-            # Specify custom variables inside build environment
-            # <name>: <value>
-    crossCompile:
-        enabled: true
-        image: multiarch/qemu-user-static
-        args: [ "--reset", "-p", "yes" ]
+  architectures:
+    armv7l:
+      platform: "linux/arm/v7"
+    aarch64:
+      platform: "linux/arm64"
+    x86_64:
+      platform: "linux/amd64"
+  default: aarch64
+  options:
+    outputType: oci
+    debug: false
+    env:
+  crossCompile:
+    enabled: true
+    image: multiarch/qemu-user-static
+    args: ["--reset", "-p", "yes"]
 
-# Sequences
-# ---------------------------
-# a sequence (array) of commands that will be executed on the device
 sequences:
-    # <alias>:
-    #     - cmd: <command-to-run>
-    #       delay: <milliseconds-after-cmd>
-    #       retries: <attempts>
-    #       ignoreFailure: <true/false>
-    #       input: <command-input>
+  # deployment sequences
 
-# Publish targets (endpoints)
-# ---------------------------
-# Specify a set of endpoints where the application can be published (to be downloaded from)
-# each entry must be in the form of:
-#   <alias>:
-#       method: <method>                    # one of `listen`, `put`, `copy`, `push`, `registry-v2`
-#       addr: <url>                         # url of endpoint
-#       auth: <type>                        # authentication type; one of `basic`, `bearer`, `digest`
-#       username: <username>                # username for registry authentication
-#       password: <password>                # password for registry authentication
-#       password2: <password2>              # password2 of device
-#       privateKeyFile: <path/to/file/name> # path to keyfile for private key authentication
-#       token: <auth-token>                 # authentication token for `bearer` authentication
 publish:
-    local:
-        addr: http://0.0.0.0:8080
-        method: listen
+  local:
+    addr: http://0.0.0.0:8080
+    method: listen
 
-    #   webserver:
-    #       addr: https://upload.example.com/artifacts/
-    #       auth: basic
-    #       method: put
+  localRegistry:
+    addr: 0.0.0.0:8080
+    method: registry-v2
+    namespace: aarch64/${.app.name}
+    reference: ${.app.version}
 
-    localRegistry:
-        addr: 0.0.0.0:8080
-        method: registry-v2
-        namespace: aarch64/${.app.name}
-        reference: ${.app.version}
-    
-
-    # remoteRegistry:
-    #     addr: https://corteca-registry.int.net.nokia.com
-    #     auth: basic
-    #     method: push
-    #     username: "${ .env.REGISTRY_USERNAME }"
-    #     password: "${ .env.REGISTRY_PASSWORD }"
-
-# Devices
-# ---------------------------
-# A set of devices to deploy the application artifact(s)
-# each entry must be in the form of:
-#   <alias>:
-#       addr: <url>                         # url of device console (only `ssh` protocol is currently supported)
-#       auth: <type>                        # authentication type; one of `password`, `publicKey`
-#       password2: <password2>              # password2 of device
-#       privateKeyFile: <path/to/file/name> # path to keyfile for private key authentication
-#       token: <device-token>               # authentication token
 devices:
-    # beacon device
-    beacon:
-        addr: ssh://${ .env.BEACON_USER }:${ .env.BEACON_PASS }@192.168.18.1
-        password2: "${ .env.PASSWORD2 }"
-    # a qemu-based beacon virtualization
-    qemu:
-        addr: ssh://${ .env.vBEACON_USER }@172.17.0.2:${ .env.vBEACON_PORT }
+  # deployment devices
