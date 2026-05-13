@@ -1,6 +1,10 @@
+# ide
 .cache
 .vscode/
 .zed/
+
+# build artifacts
 /dist
-.deploy.log
+
+# packaging artifacts
 nfpm.yaml
