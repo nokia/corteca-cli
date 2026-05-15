@@ -18,6 +18,7 @@ PS1_COMPLETION_DIR = completions
 
 # build main binary (for destination os/architecture)
 $(BIN)/$(FULL_BINARY_NAME): $(TMP)
+	mkdir -p $(BIN)
 	go env
 	CGO_ENABLED=0 GOOS=$(DESTOS) GOARCH=$(DESTARCH) go build $(BUILD_FLAGS) -o $(BIN)/$(FULL_BINARY_NAME) main.go
 

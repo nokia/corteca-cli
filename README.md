@@ -2,6 +2,14 @@
   <img src="./doc/images/nokia_logo_blue.svg" width="250" alt="Nokia Logo" title="Nokia Logo" />
 </div>
 
+<div align="center">
+
+[![Build](https://github.com/nokia/corteca-cli/actions/workflows/build.yml/badge.svg)](https://github.com/nokia/corteca-cli/actions/workflows/build.yml)
+[![Tests](https://github.com/nokia/corteca-cli/actions/workflows/test.yml/badge.svg)](https://github.com/nokia/corteca-cli/actions/workflows/test.yml)
+[![Coverage](https://codecov.io/gh/nokia/corteca-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/nokia/corteca-cli)
+
+</div>
+
 # Corteca Developer Toolkit
 
 Corteca Developer Toolkit is a command-line tool for building, packaging, and
