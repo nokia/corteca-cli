@@ -1,16 +1,68 @@
 name: corteca-cli
 version: ${VERSION}
-description: Corteca Developer Toolkit cli
+description: Corteca Developer Toolkit cli tool
 vendor: Nokia
-maintainer: Nokia
-homepage: https://nokia.com
+maintainer: Manolis Paterakis <manolis.paterakis@nokia.com>
+homepage: https://github.com/nokia/corteca-cli
+license: BSD-3-Clause
+
 arch: ${GOARCH}
+platform: ${GOOS}
+
 contents:
-  - src: ${DESTDIR}/etc
-    dst: /etc
-  - src: ${DESTDIR}/opt
-    dst: /opt
-  - src: ${DESTDIR}/usr
+  - src: ${DESTDIR}/opt/corteca/corteca
+    dst: /opt/corteca/corteca
+
+  - src: /opt/corteca/corteca
+    dst: /usr/bin/corteca
+    type: symlink
+
+  - src: ${DESTDIR}/etc/corteca/
+    dst: /etc/corteca
+
+  - src: ${DESTDIR}/usr/
     dst: /usr
+
+overrides:
+  msix:
+    contents:
+      - src: ${DESTDIR}/opt/corteca/corteca
+        dst: corteca.exe
+
+      - src: ${DESTDIR}/etc/corteca/
+        dst: config
+        type: tree
+
+      - src: ${DESTDIR}/completions/
+        dst: completions
+        type: tree
+
+      - src: doc/images/nokia_logo.png
+        dst: assets/images/nokia_logo.png
+
+      # - src: ${DESTDIR}/completions
+      #   dst: modules/corteca/corteca.psm1
+
 depends:
-  - docker.io | docker-ce | podman-docker
+  - "docker.io | docker-ce | podman-docker"
+
+msix:
+  identity:
+    resource_id: Nokia.CortecaCLI
+  publisher: "CN=Nokia"
+
+  properties:
+    display_name: CortecaCLI
+    publisher_display_name: Nokia
+    logo: assets/images/nokia_logo.png
+
+  applications:
+    - id: App
+      executable: corteca.exe
+
+#   capabilities:
+#     capabilities:
+#       - internetClient
+
+# vim: set ft=yaml:
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/static/schema.json
