@@ -3,8 +3,7 @@
 .vscode/
 .zed/
 
-# build artifacts
+# test/build/package artifacts
 /dist
-
-# packaging artifacts
 nfpm.yaml
+coverage.out
