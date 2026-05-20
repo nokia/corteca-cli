@@ -1,29 +1,43 @@
 # Getting Started
 
 ## Install corteca cli
-Follow the instructions in [BUILD](BUILD.md) guide
+To install or build from source, you can follow the [relevant instructions](../README.md#install) in the main README file. To make sure everything is in place, run the following command in any folder.
 
-## Create, build and publish an OCI application from scratch
+```bash
+$ corteca config get
+```
 
-### Create Application
+You should see your default system-wide configuration.
 
-Corteca cli can create projects for applications written in C, C++ or Go. In the following example a C project is created, but any other choice will work for a pre-built rootfs image.
+## Create Application
+
+Scaffolding applications depends on existing templates in your system. By default, corteca-cli includes templates for C, C++ and Go. For more information on how to write templates, refer to the relevant guide. We will create a C application in the rest of this example.
 
 Change to the directory where you want your application directory to be created and run the following command:
 
-`corteca create test_app`
+```bash
+$ corteca create test_app
+```
 
-Follow the prompt instructions to specify the details of the application.
+Follow the prompt instructions to populate the application settings. If a mandatory option is not properly set up, the create procedure will fail. A folder named after the given parameter (test_app) in the above command will be created with all the generated files inside. The structure of the folder should be similar to the below:
 
-![create](images/create.PNG)
-
-Note that if a mandatory option is not properly set up, the create procedure will fail.
-
-A folder named after the given parameter (test_app) in the above command will be created with all the generated files inside.
-
-![folder tree](images/tree.PNG)
-
-The current configuration of the application is in corteca.yaml
+```bash
+test_app
+├── .corteca
+│   ├── ADF.template
+│   └── Dockerfile.template
+├── corteca.yaml # main configuration file
+├── .gitignore
+├── Makefile
+├── src # your application source code will live here
+│   ├── Makefile
+│   └── test_app.c
+└── target # files to be placed directly in your container rootfs
+    ├── aarch64
+    ├── armv7l
+    ├── noarch
+    └── x86_64
+```
 
 For more info on corteca create check [corteca create](reference/corteca_create.md) guide.
 
