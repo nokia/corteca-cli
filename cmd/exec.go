@@ -85,7 +85,7 @@ func doExecSequence(sequencename, deviceName string) {
 	}
 
 	// execute the sequence
-	if err = config.Sequences.Execute(device, sequencename, false); err != nil {
+	if err = config.Sequences.Execute(device, sequencename); err != nil {
 		tui.LogError("Error while executing sequence '%s': %s", sequencename, err.Error())
 	} else {
 		tui.DisplaySuccessMsg("Sequence completed successfully!")

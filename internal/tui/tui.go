@@ -48,6 +48,13 @@ func LogNormal(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, format, args...)
 }
 
+func LogWarning(format string, args ...any) {
+	SetOutputColor(CYellow, os.Stderr)
+	format += "\n"
+	fmt.Fprintf(os.Stderr, format, args...)
+	ResetOutputColor(os.Stderr)
+}
+
 func LogError(format string, args ...any) {
 	SetOutputColor(CRed, os.Stderr)
 	format += "\n"

@@ -83,7 +83,7 @@ func simpleStep(cmd string, ignoreFailure bool) configuration.SequenceCmd {
 // in the map returns an error.
 func TestExecute_UnknownSequence(t *testing.T) {
 	sm := configuration.SequenceMap{"existing": {}}
-	err := sm.Execute(&mockExecutor{}, "missing", false)
+	err := sm.Execute(&mockExecutor{}, "missing")
 	if err == nil {
 		t.Fatal("expected an error for unknown sequence name, got nil")
 	}
@@ -97,7 +97,7 @@ func TestExecute_BeginAndEndSequence(t *testing.T) {
 	}
 	exec := &mockExecutor{}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exec.beginCalled != 1 {
@@ -105,25 +105,6 @@ func TestExecute_BeginAndEndSequence(t *testing.T) {
 	}
 	if exec.endCalled != 1 {
 		t.Errorf("EndSequence: expected 1 call, got %d", exec.endCalled)
-	}
-}
-
-// TestExecute_SkipInit_NoBoundaryCallbacks verifies that BeginSequence and EndSequence are
-// not called when skipinit=true.
-func TestExecute_SkipInit_NoBoundaryCallbacks(t *testing.T) {
-	sm := configuration.SequenceMap{
-		"seq": {simpleStep("cmd", false)},
-	}
-	exec := &mockExecutor{}
-
-	if err := sm.Execute(exec, "seq", true); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if exec.beginCalled != 0 {
-		t.Errorf("BeginSequence: expected 0 calls with skipinit=true, got %d", exec.beginCalled)
-	}
-	if exec.endCalled != 0 {
-		t.Errorf("EndSequence: expected 0 calls with skipinit=true, got %d", exec.endCalled)
 	}
 }
 
@@ -139,7 +120,7 @@ func TestExecute_EachStepCallsExecuteCommand(t *testing.T) {
 	}
 	exec := &mockExecutor{}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if exec.callCount != 3 {
@@ -155,7 +136,7 @@ func TestExecute_BeginSequenceError_AbortsBefore(t *testing.T) {
 	}
 	exec := &mockExecutor{beginErr: errors.New("begin failed")}
 
-	if err := sm.Execute(exec, "seq", false); err == nil {
+	if err := sm.Execute(exec, "seq"); err == nil {
 		t.Fatal("expected error when BeginSequence fails, got nil")
 	}
 	if exec.callCount != 0 {
@@ -174,7 +155,7 @@ func TestExecute_StepFailure_EndSequenceSkipped(t *testing.T) {
 	}
 	exec := &mockExecutor{executeFunc: alwaysFails(errors.New("step failed"))}
 
-	if err := sm.Execute(exec, "seq", false); err == nil {
+	if err := sm.Execute(exec, "seq"); err == nil {
 		t.Fatal("expected error for failed step, got nil")
 	}
 	if exec.endCalled != 0 {
@@ -190,7 +171,7 @@ func TestExecute_EndSequenceError_Propagates(t *testing.T) {
 	}
 	exec := &mockExecutor{endErr: errors.New("end failed")}
 
-	if err := sm.Execute(exec, "seq", false); err == nil {
+	if err := sm.Execute(exec, "seq"); err == nil {
 		t.Fatal("expected error when EndSequence fails, got nil")
 	}
 }
@@ -208,7 +189,7 @@ func TestExecute_Retries_ExhaustsAllAttempts(t *testing.T) {
 	sm := configuration.SequenceMap{"seq": {cmd}}
 	exec := &mockExecutor{executeFunc: alwaysFails(errors.New("fail"))}
 
-	if err := sm.Execute(exec, "seq", false); err == nil {
+	if err := sm.Execute(exec, "seq"); err == nil {
 		t.Fatal("expected error after retries exhausted, got nil")
 	}
 	if exec.callCount != 3 {
@@ -227,7 +208,7 @@ func TestExecute_Retries_SucceedsOnRetry(t *testing.T) {
 	sm := configuration.SequenceMap{"seq": {cmd}}
 	exec := &mockExecutor{executeFunc: succeedsAfter(1, errors.New("transient"))}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("expected success after retry, got: %v", err)
 	}
 	if exec.callCount != 2 {
@@ -248,7 +229,7 @@ func TestExecute_IgnoreFailure_SkipsRetries(t *testing.T) {
 	sm := configuration.SequenceMap{"seq": {cmd}}
 	exec := &mockExecutor{executeFunc: alwaysFails(errors.New("fail"))}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("expected no error with IgnoreFailure=true, got: %v", err)
 	}
 	if exec.callCount != 1 {
@@ -277,7 +258,7 @@ func TestExecute_IgnoreFailure_SequenceContinues(t *testing.T) {
 		},
 	}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("expected sequence to complete successfully, got: %v", err)
 	}
 	if exec.callCount != 2 {
@@ -303,7 +284,7 @@ func TestExecute_IgnoreFailure_False_StopsOnError(t *testing.T) {
 		},
 	}
 
-	if err := sm.Execute(exec, "seq", false); err == nil {
+	if err := sm.Execute(exec, "seq"); err == nil {
 		t.Fatal("expected error for failed step, got nil")
 	}
 	if exec.callCount != 1 {
@@ -326,7 +307,7 @@ func TestExecute_Delay_AppliedAfterAttempt(t *testing.T) {
 	exec := &mockExecutor{}
 
 	start := time.Now()
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed < delay {
@@ -352,7 +333,7 @@ func TestExecute_Delay_AppliedBetweenRetries(t *testing.T) {
 	exec := &mockExecutor{executeFunc: succeedsAfter(retries, errors.New("transient"))}
 
 	start := time.Now()
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	// Each of the three attempts is followed by a Delay sleep, so the total must be
@@ -390,7 +371,7 @@ func TestExecute_Timeout_ContextDeadlineSet(t *testing.T) {
 		},
 	}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if !deadlineOk {
@@ -433,7 +414,7 @@ func TestExecute_DefaultTimeout_UsedWhenUnset(t *testing.T) {
 		},
 	}
 
-	if err := sm.Execute(exec, "seq", false); err != nil {
+	if err := sm.Execute(exec, "seq"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

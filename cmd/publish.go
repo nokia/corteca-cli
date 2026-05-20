@@ -145,7 +145,7 @@ func handleRegistry(config RegistryConfig, wait bool) {
 		failOperation(err.Error())
 	} else {
 		url.Path = fmt.Sprintf("/%s:%s", config.Namespace.String(), config.Reference.String())
-		tui.LogNormal("Publishing artifact on: %s", url.String())
+		tui.LogNormal("Publishing artifact on '%s'", url.String())
 		ep := configuration.Endpoint{Addr: configuration.T(url.String())}
 		err = publish.PushImage(artifact, &configuration.HttpClientEndpoint{
 			Endpoint:            ep,

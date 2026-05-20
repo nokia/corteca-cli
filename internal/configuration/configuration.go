@@ -13,6 +13,7 @@ import (
 	specs "corteca/internal/configuration/runtimeSpec"
 	"corteca/internal/configuration/templating"
 	"corteca/internal/fsutil"
+	"corteca/internal/tui"
 	"errors"
 	"fmt"
 	"io"
@@ -268,14 +269,15 @@ func evaluateExpressionFunc(visited []string, context any) func(string) string {
 
 		for i := range visited {
 			if key == visited[i] {
-				panic(fmt.Sprintf("Circular dependency detected for key: %s", key))
+				tui.LogWarning("Circular dependency detected for key: %s", key)
+				return ""
 			}
 		}
 		value, err := ReadField(context, key)
 		visited = append(visited, key)
 
 		if err != nil {
-			fmt.Printf("Warning: could not read field '%s' with error: %v\n", key, err.Error())
+			tui.LogWarning("Warning: could not read field '%s' with error: %s", key, err.Error())
 			return ""
 		}
 
@@ -451,6 +453,10 @@ func ReadField(conf any, fieldPath string) (any, error) {
 		if index == 0 && len(key) == 0 {
 			// edge case: first elem is empty
 			continue
+		}
+		// if field is nil
+		if field.IsNil() {
+			return nil, fmt.Errorf("cannot address nil value with key '%s'", key)
 		}
 		// if field is a pointer, dereference
 		if field.Kind() == reflect.Ptr {

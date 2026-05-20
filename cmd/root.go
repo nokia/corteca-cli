@@ -223,17 +223,6 @@ func requireBuildArtifact() {
 			failOperation(fmt.Sprintf("file %s not found", artifact))
 		}
 		distFolder = filepath.Dir(artifact)
-		// If artifact is specified directly, we attempt to extract App.Name
-		// and DUID from the artifact filename, if not already set in the
-		// configuration. This is to allow users to specify an artifact without
-		// having to set these values explicitly, as they are required for
-		// publishing.
-		if skipLocalConfig || len(configuration.GetCmdContext().App.DUID) == 0 {
-			configuration.GetCmdContext().App.DUID = generateDUID(artifact)
-		}
-		if skipLocalConfig || len(configuration.GetCmdContext().App.Name) == 0 {
-			configuration.GetCmdContext().App.Name = getAppNameFromArtifact(artifact)
-		}
 	} else {
 		requireProjectContext()
 		distFolder = filepath.Join(projectRoot, distFolderName)
