@@ -89,20 +89,31 @@ type CommandExecutor interface {
 	EndSequence() error
 }
 
-func (sm *SequenceMap) Execute(executor CommandExecutor, seqName string, skipinit bool) error {
+func (sm *SequenceMap) Execute(executor CommandExecutor, seqName string) error {
+	if _, ok := (*sm)[seqName]; !ok {
+		return fmt.Errorf("sequence '%s' was not found", seqName)
+	}
+	if err := executor.BeginSequence(); err != nil {
+		return fmt.Errorf("failed to initialize sequence: %w", err)
+	}
+	if err := sm.executeSequenceSteps(executor, seqName); err != nil {
+		return err
+	}
+	if err := executor.EndSequence(); err != nil {
+		return fmt.Errorf("failed to shutdown sequence: %w", err)
+	}
+	return nil
+}
+
+func (sm *SequenceMap) executeSequenceSteps(executor CommandExecutor, seqName string) error {
 	seq, found := (*sm)[seqName]
 	if !found {
 		return fmt.Errorf("sequence '%s' was not found", seqName)
 	}
 	tui.LogNormal("Executing sequence '%s'", seqName)
-	if !skipinit {
-		if err := executor.BeginSequence(); err != nil {
-			return fmt.Errorf("failed to initialize sequence: %w", err)
-		}
-	}
 	for idx, step := range seq {
 		if refSeqName, found := findRefToSequence(step.Cmd.String()); found {
-			if err := sm.Execute(executor, refSeqName, true); err != nil {
+			if err := sm.executeSequenceSteps(executor, refSeqName); err != nil {
 				return err
 			}
 			continue
@@ -116,11 +127,6 @@ func (sm *SequenceMap) Execute(executor CommandExecutor, seqName string, skipini
 		enc := yaml.NewEncoder(os.Stdout)
 		enc.Encode(res)
 		tui.ResetOutputColor(os.Stdout)
-	}
-	if !skipinit {
-		if err := executor.EndSequence(); err != nil {
-			return fmt.Errorf("failed to shutdown sequence: %w", err)
-		}
 	}
 	return nil
 }
