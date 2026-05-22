@@ -28,4 +28,4 @@ jobs:
         with:
           files: ./coverage.out
           flags: unittests
-          token: $({ secrets.CODECOV_TOKEN })
+          token: ${{ secrets.CODECOV_TOKEN }}
