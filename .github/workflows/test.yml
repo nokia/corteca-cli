@@ -13,7 +13,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # required for git describe --tags used in VERSION
+          fetch-depth: 0 # required for git describe --tags used in VERSION
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -28,3 +28,4 @@ jobs:
         with:
           files: ./coverage.out
           flags: unittests
+          token: $({ secrets.CODECOV_TOKEN })
