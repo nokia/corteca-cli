@@ -1,0 +1,6 @@
+.cache
+.vscode/
+/dist
+.deploy.log
+nfpm.yaml
+Dockerfile
