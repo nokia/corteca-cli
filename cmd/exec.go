@@ -43,6 +43,9 @@ func doExecSequence(sequencename, deviceName string) {
 	if devConfig, found := config.Devices[deviceName]; !found {
 		failOperation(fmt.Sprintf("no config for device '%s' was found", deviceName))
 	} else {
+		if !skipLocalConfig {
+			requireBuildArtifact()
+		}
 		configuration.GetCmdContext().Device.DeviceConfig = devConfig
 		configuration.GetCmdContext().Device.Name = deviceName
 		configuration.GetCmdContext().Arch = configuration.GetCmdContext().Device.Architecture
