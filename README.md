@@ -16,14 +16,14 @@ artifact and running deployment sequences on a live device.
 ## Features
 
 - **Project scaffolding** — bootstrap a new application project from a
-  language template (C, C++, Go) with `corteca create`.
+  language template. Default templates available for C, C++ and Go, but
+  virtually any technology stack can be integrated.
 
-- **Cross-architecture builds** — build and package the application inside an
-  isolated Docker container with QEMU-based cross-compilation support, targeting
-  `aarch64`, `armv7l`, or `x86_64` and producing OCI, Docker, or rootfs output.
+- **Cross-architecture builds** — build and package the application producing
+  OCI, Docker, or plain rootfs output.
 
-- **Flexible publishing** — deliver the build artifact via a local HTTP(S)
-  server, HTTP PUT upload, OCI registry push, or a locally hosted Docker
+- **Flexible publishing** — publish the build artifact via a local HTTP(S)
+  server, HTTP PUT upload, OCI registry push, or a locally-hosted Docker
   Distribution registry.
 
 - **Device deployment** — run named sequences of deployment steps on a remote
@@ -85,7 +85,7 @@ can be targeted by name when running `corteca exec`.
 Clone the repository and run:
 
 ```bash
-make
+$ make
 ```
 
 The compiled binary is placed in the `dist/` directory.
@@ -96,7 +96,7 @@ If you do not have a local Go toolchain, you can build entirely inside Docker
 (BuildKit is required):
 
 ```bash
-docker build --output ./dist .
+$ docker build --output ./dist .
 ```
 
 #### Installing Docker BuildKit
@@ -104,7 +104,7 @@ docker build --output ./dist .
 On Docker Engine < 23.0, BuildKit must be enabled manually. On Ubuntu 22.04:
 
 ```bash
-sudo apt-get install docker-buildx-plugin
+$ sudo apt-get install docker-buildx-plugin
 ```
 
 Then either prefix each `docker build` invocation with `DOCKER_BUILDKIT=1`, or
@@ -115,20 +115,38 @@ to enable it globally.
 
 ## Install
 
-Install the binary to `$GOBIN` (defaults to `$HOME/go/bin`) and the required
-template files to `$HOME/.config/corteca`:
+### Install manually from source
+
+You can run the below command to build the application and install the binary to
+the `/usr/bin` folder and the default configuration files to the `/etc/corteca`
+folder:
 
 ```bash
-make install
+$ sudo make install
 ```
 
-To remove a previous installation:
+To remove a previous manual installation
 
 ```bash
-make uninstall
+$ sudo make uninstall
 ```
 
-> For the full build guide see [doc/BUILD.md](doc/BUILD.md).
+You can customize the destination folder by overriding the `$DESTDIR`
+environment variable:
+
+```bash
+# no sudo required; will be installed to ~/.local/share/usr/bin
+$ DESTDIR=~/.local/share make install
+```
+
+### Install with package manager
+
+If you are using debian/ubuntu or redhat-based distributions, you can create a relevant package and let your package manager handle installation. E.g. for ubuntu:
+
+```bash
+$ make deb
+$ make rpm
+```
 
 ## Getting Started
 
@@ -136,10 +154,10 @@ The fastest way to get up and running is to create a project, build it, and
 publish it to a local registry in three commands:
 
 ```bash
-corteca create my-app          # scaffold a new application project
-cd my-app
-corteca build aarch64          # build an OCI image for aarch64
-corteca publish localRegistry  # push it to a local OCI registry
+$ corteca create my-app          # scaffold a new application project
+$ cd my-app
+$ corteca build aarch64          # build an OCI image for aarch64
+$ corteca publish localRegistry  # push it to a local OCI registry
 ```
 
 For a step-by-step walkthrough — including how to configure a device target and
@@ -168,7 +186,8 @@ corteca config set app.version 1.1  # update a value
 ```
 
 For a full reference of every configuration key, their types, defaults, and
-supported template expressions, see **[doc/Configuration.md](doc/Configuration.md)**.
+supported template expressions, see the [configuration
+reference](doc/Configuration.md).
 
 ## Command Line Reference
 
@@ -179,13 +198,10 @@ supported template expressions, see **[doc/Configuration.md](doc/Configuration.m
 | [`corteca publish`](doc/reference/corteca_publish.md) | Upload or serve the build artifact via a configured publish target |
 | [`corteca exec`](doc/reference/corteca_exec.md) | Run a named deployment sequence on a configured device |
 | [`corteca config`](doc/reference/corteca_config.md) | Inspect or modify configuration values |
-| [`corteca config get`](doc/reference/corteca_config_get.md) | Read a configuration value |
-| [`corteca config set`](doc/reference/corteca_config_set.md) | Write a configuration value |
-| [`corteca config add`](doc/reference/corteca_config_add.md) | Append to a list or map configuration value |
 | [`corteca regen`](doc/reference/corteca_regen.md) | Regenerate template-derived project files |
 
 For a broader overview of all commands, flags, and usage patterns see
-**[doc/USAGE.md](doc/USAGE.md)**.
+[doc/USAGE.md](doc/USAGE.md).
 
 Every command also accepts `--help` for inline usage information:
 

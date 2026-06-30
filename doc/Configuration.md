@@ -256,7 +256,7 @@ publish:
 
 | Field         | Type              | Required   | Description                                                                                                                                      |
 | -------       | ------            | ---------- | -------------                                                                                                                                    |
-| `addr`        | string (template) | Yes        | Address the local registry listens on.                                                                                                           |
+| `addr`        | string (template) | Yes        | Address the local registry listens on the form of `<host>[:<port>]` (no schema prefix)                                                           |
 | `namespace`   | string (template) | Yes        | Repository path within the registry (e.g., `myapp` or `org/myapp`). Combined with `reference` to form the image path `/<namespace>:<reference>`. |
 | `reference`   | string (template) | Yes        | Image tag or digest reference (e.g., `1.0.0` or `latest`). Template expressions such as `${ .app.version }` are commonly used here.              |
 | `certificate` | string (template) | No         | Path to a PEM-encoded TLS certificate. Enables HTTPS when set together with `key`.                                                               |
