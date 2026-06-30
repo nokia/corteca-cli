@@ -11,15 +11,21 @@ You should see your default system-wide configuration.
 
 ## Create Application
 
-Scaffolding applications depends on existing templates in your system. By default, corteca-cli includes templates for C, C++ and Go. For more information on how to write templates, refer to the relevant guide. We will create a C application in the rest of this example.
+Scaffolding applications depends on existing templates in your system. By
+default, corteca-cli includes templates for C, C++ and Go. For more information
+on how to write templates, refer to the [relevant guide](templates.md). We will create a C application in the rest of this example.
 
-Change to the directory where you want your application directory to be created and run the following command:
+Change to the parent folder where you want your application directory to be
+created and run the following command:
 
 ```bash
 $ corteca create test_app
 ```
 
-Follow the prompt instructions to populate the application settings. If a mandatory option is not properly set up, the create procedure will fail. A folder named after the given parameter (test_app) in the above command will be created with all the generated files inside. The structure of the folder should be similar to the below:
+Follow the prompt instructions to populate the application settings. A
+folder named after the given parameter (test_app) in the above command will be
+created with all the generated files inside. The structure of the folder should
+be similar to the below:
 
 ```bash
 test_app
@@ -39,11 +45,12 @@ test_app
     └── x86_64
 ```
 
-For more info on corteca create check [corteca create](reference/corteca_create.md) guide.
-
 ### Build application
-To build an application, corteca cli uses docker container where all the needed dependencies and tools are installed. The dockerfile will be auto generated on build using the *Dockerfile.template* found under *.corteca* folder.
-Corteca supports by default builds for aarch64, armv7l, x86_64 architectures and output types for OCI, docker and nokia custom images.
+
+To build the application, corteca-cli uses a docker container where all the
+needed dependencies and tools are installed. The dockerfile will be auto
+generated on build using the `Dockerfile.template` found under `.corteca`
+folder.
 
 For this example we will build an OCI image build for armv7l architecture.
 
@@ -52,16 +59,17 @@ Enter the folder created on the previous step.
 `cd test_app`
 `corteca build -c 'build.options.outputType=oci' armv7l`
 
-When the build process is finished, the generated artifact will be placed in *dist/* folder. For this example a *test-1.0-armv7l-oci.tar* will be generated.
-
-For more info on corteca build check [corteca build](reference/corteca_build.md) guide.
+When the build process is finished, the generated artifact will be placed in
+the `dist/` folder. For this example a `test-1.0-armv7l-oci.tar` will be
+generated.
 
 ### Publish your application
+
 Corteca cli provides a publish functionality to help users upload their produced artifacts in an OCI registry. There are some registries set up by default in corteca that can be used as a template from the user to set up the target registry. You can check the current configuration for publish using
 
-`corteca config get publish`
-
-![publish](images/publish.PNG)
+```bash
+$ corteca config get publish
+```
 
 #### Publish in corteca local registry
 User can use the already set up local registry.
