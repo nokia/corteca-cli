@@ -454,13 +454,13 @@ func ReadField(conf any, fieldPath string) (any, error) {
 			// edge case: first elem is empty
 			continue
 		}
-		// if field is nil
-		if field.IsNil() {
-			return nil, fmt.Errorf("cannot address nil value with key '%s'", key)
-		}
-		// if field is a pointer, dereference
+		// if field is a pointer and not nil, dereference
 		if field.Kind() == reflect.Ptr {
-			field = field.Elem()
+			if field.IsNil() {
+				return nil, fmt.Errorf("cannot address nil value with key '%s'", key)
+			} else {
+				field = field.Elem()
+			}
 		}
 		t := field.Kind()
 		switch t {
