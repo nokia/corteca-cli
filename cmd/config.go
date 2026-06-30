@@ -81,8 +81,8 @@ corteca config add devices "{beacon6: {addr: ssh://root:passwd@192.168.67.5, pas
 
 var evalCmd = &cobra.Command{
 	Use:               "eval EXPR",
-	Short:             "Evaluate a configuration value",
-	Long:              "Evaluate a configuration value based on template substitution",
+	Short:             "Evaluate a configuration expression",
+	Long:              "Evaluate a configuration expression potentially containing template substitutions",
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: validConfigArgsFunc,
 	Run:               func(cmd *cobra.Command, args []string) { doEvalConfigValue(args[0]) },

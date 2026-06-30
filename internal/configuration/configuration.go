@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -27,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/spf13/afero"
+	"github.com/vishvananda/netlink"
 	"gopkg.in/yaml.v3"
 )
 
@@ -44,6 +46,7 @@ func init() {
 	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
 	regexDollarExpr = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
 	populateEnvVars()
+	ResetContext()
 }
 
 // Top level object of application configuration settings
@@ -224,6 +227,19 @@ type CmdContext struct {
 	Build    *BuildSettings    `yaml:"build,omitempty"`
 	Artifact string            `yaml:"artifact,omitempty"`
 	Env      map[string]string `yaml:"env,omitempty"`
+	Host     struct {
+		Name string `yaml:"name"`
+		Addr string `yaml:"addr"`
+	} `yaml:"host"`
+}
+
+func getHostInfo() (string, string) {
+	var hostName, hostAddr string
+	hostName, _ = os.Hostname()
+	if routes, err := netlink.RouteGet(net.ParseIP("1.1.1.1")); err == nil {
+		hostAddr = routes[0].Src.String()
+	}
+	return hostName, hostAddr
 }
 
 func ResetContext() {
@@ -231,6 +247,7 @@ func ResetContext() {
 		App:   &AppSettings{},
 		Build: &BuildSettings{},
 	}
+	commandContext.Host.Name, commandContext.Host.Addr = getHostInfo()
 }
 
 func GetCmdContext() *CmdContext {
