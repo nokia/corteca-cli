@@ -29,7 +29,7 @@ corteca config set`,
 }
 
 var getCmd = &cobra.Command{
-	Use:   "get key",
+	Use:   "get KEY",
 	Short: "Read a configuration value",
 	Long:  "Read a configuration value from global or application's corteca.yaml file",
 	Example: `#Read build configuration value 'outputType'
@@ -49,7 +49,7 @@ corteca config get devices.beacon`,
 }
 
 var setCmd = &cobra.Command{
-	Use:   "set key value",
+	Use:   "set KEY VALUE",
 	Short: "Set a configuration value",
 	Long:  "Set a configuration value to global or application's corteca.yaml file",
 	Example: `#Set build configuration value 'outputType'
@@ -69,7 +69,7 @@ corteca config --global set build.crossCompile.args "["--reset", "-p", "yes"]"`,
 }
 
 var addCmd = &cobra.Command{
-	Use:   "add key value",
+	Use:   "add KEY VALUE",
 	Short: "Add (append) a configuration value",
 	Long:  "Add (append) a configuration value to global or application's corteca.yaml file",
 	Example: `#Add to devices a device named 'beacon6' with its configuration fields
@@ -79,6 +79,15 @@ corteca config add devices "{beacon6: {addr: ssh://root:passwd@192.168.67.5, pas
 	Run:               func(cmd *cobra.Command, args []string) { doSetConfigValue(args[0], args[1], true) },
 }
 
+var evalCmd = &cobra.Command{
+	Use:               "eval EXPR",
+	Short:             "Evaluate a configuration value",
+	Long:              "Evaluate a configuration value based on template substitution",
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: validConfigArgsFunc,
+	Run:               func(cmd *cobra.Command, args []string) { doEvalConfigValue(args[0]) },
+}
+
 func init() {
 	setCmd.PersistentFlags().BoolVar(&noRegen, "no-regen", false, "Skip regeneration of templates")
 	addCmd.PersistentFlags().BoolVar(&noRegen, "no-regen", false, "Skip regeneration of templates")
@@ -86,6 +95,7 @@ func init() {
 	configCmd.AddCommand(getCmd)
 	configCmd.AddCommand(setCmd)
 	configCmd.AddCommand(addCmd)
+	configCmd.AddCommand(evalCmd)
 	rootCmd.AddCommand(configCmd)
 }
 
@@ -125,6 +135,16 @@ func doSetConfigValue(key, value string, append bool) {
 			doRegenTemplates(projectRoot, "")
 		}
 	}
+}
+
+func doEvalConfigValue(expr string) {
+	if len(projectRoot) > 0 {
+		requireProjectContext()
+	}
+	field := configuration.T(expr)
+	enc := yaml.NewEncoder(os.Stdout)
+	enc.SetIndent(configuration.YamlIndentation)
+	enc.Encode(field.String())
 }
 
 func validConfigArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
