@@ -4,3 +4,4 @@
 /dist
 .deploy.log
 nfpm.yaml
+.DS_Store

@@ -1,0 +1,174 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  guard:
+    name: Ensure tag is on main
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tagged commit is on main
+        run: |
+          git fetch --no-tags origin main
+          if git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Tag commit $GITHUB_SHA is on main; proceeding."
+          else
+            echo "::error::Tag commit $GITHUB_SHA is not on main; refusing to release."
+            exit 1
+          fi
+
+  packages:
+    name: Build installer packages
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags are required so that `git describe --tags`
+          # (used by the Makefile to compute VERSION) resolves correctly.
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build packages
+        run: docker build --target build-artifacts --output ./dist .
+
+      - name: Upload package artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/packages/*
+          if-no-files-found: error
+
+  binaries:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }} binary
+    needs: guard
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          VERSION="$(git describe --tags)"
+          OUT="corteca-${GOOS}-${GOARCH}-${VERSION}${{ matrix.ext }}"
+          go build -ldflags "-X corteca/cmd.appVersion=${VERSION}" -o "dist/bin/${OUT}" main.go
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/bin/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub release
+    needs: [packages, binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  image:
+    name: Build and push container image
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download pre-built linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binary-linux-*
+          path: downloaded
+
+      - name: Arrange binaries for image build
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            mkdir -p "dist/linux/${arch}"
+            src="$(ls downloaded/binary-linux-${arch}/corteca-linux-${arch}-*)"
+            cp "$src" "dist/linux/${arch}/corteca"
+            chmod +x "dist/linux/${arch}/corteca"
+          done
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.cli
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

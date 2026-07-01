@@ -1,0 +1,16 @@
+# Assembles a scratch image from a pre-compiled corteca binary.
+# The binary is expected at dist/<os>/<arch>/corteca in the build context
+# (populated in CI from the release binary artifacts).
+
+# Helper stage only used to obtain CA certificates for outbound TLS.
+FROM alpine:3.20 AS certs
+RUN apk add --no-cache ca-certificates
+
+FROM scratch
+ARG TARGETOS
+ARG TARGETARCH
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY dist/${TARGETOS}/${TARGETARCH}/corteca /usr/local/bin/corteca
+# corteca reads system-wide templates/config from /etc/corteca on Linux.
+COPY data/ /etc/corteca/
+ENTRYPOINT ["/usr/local/bin/corteca"]

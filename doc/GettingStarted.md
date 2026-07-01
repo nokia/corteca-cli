@@ -1,6 +1,7 @@
 # Getting Started
 
 ## Install corteca cli
+
 Follow the instructions in [BUILD](BUILD.md) guide
 
 ## Create, build and publish an OCI application from scratch
@@ -28,6 +29,7 @@ The current configuration of the application is in corteca.yaml
 For more info on corteca create check [corteca create](reference/corteca_create.md) guide.
 
 ### Build application
+
 To build an application, corteca cli uses docker container where all the needed dependencies and tools are installed. The dockerfile will be auto generated on build using the *Dockerfile.template* found under *.corteca* folder.
 Corteca supports by default builds for aarch64, armv7l, x86_64 architectures and output types for OCI, docker and nokia custom images.
 
@@ -43,6 +45,7 @@ When the build process is finished, the generated artifact will be placed in *di
 For more info on corteca build check [corteca build](reference/corteca_build.md) guide.
 
 ### Publish your application
+
 Corteca cli provides a publish functionality to help users upload their produced artifacts in an OCI registry. There are some registries set up by default in corteca that can be used as a template from the user to set up the target registry. You can check the current configuration for publish using
 
 `corteca config get publish`
@@ -50,15 +53,17 @@ Corteca cli provides a publish functionality to help users upload their produced
 ![publish](images/publish.PNG)
 
 #### Publish in corteca local registry
+
 User can use the already set up local registry.
 
 `corteca publish localRegistry armv7l`
 
-Corteca will set up a local oci registry and will upload the artifact. (check with https://localhost:8080/v2/_catalog). If this registry is needed to be visible outside the host device, publicURL needs to be changed to the device IP.
+Corteca will set up a local oci registry and will upload the artifact. (check with <https://localhost:8080/v2/_catalog>). If this registry is needed to be visible outside the host device, publicURL needs to be changed to the device IP.
 
 `corteca config set publish.localRegistry.publicURL http://192.168.18.2:8080`
 
 #### Publish in custom registry
+
 User can add his own registry using *corteca config*
 
 `corteca config add publish "{myregistry: { addr: https://my-registry.com, auth: basic, username: user1, password: pass1, method: push}}"`
@@ -72,6 +77,7 @@ After the registry is set up, the application can be uploaded.
 For more info on corteca publish check [corteca publish](reference/corteca_publish.md) guide.
 
 ## Configuring application
+
 Application configuration is noted in the corteca.yaml file placed in application's folder when created. The *app* section -related to the create command- specifies app settings you can alter during the build process. 
 The complete set of settings for Corteca Cli is created by combining this file with /etc/corteca/corteca.yaml.
 Corteca cli provides methods to show or edit these settings using the *config* method. You can also check or edit the settings values using the auto complete of Corteca cli by pressing <TAB> key twice like in a shell.
@@ -85,7 +91,5 @@ To check a specific value
 To set a value
 
 `corteca config set app.version 1.0.1`
-
-
 
 For more detailed guide on config get/set/add please refer to [corteca config](reference/corteca_config.md)  guide.
