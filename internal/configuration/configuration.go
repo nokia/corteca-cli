@@ -46,8 +46,8 @@ var regexDollarExpr *regexp.Regexp
 func init() {
 	regexKeyValue = regexp.MustCompile(`^([[:word:]]+)=(.*)$`)
 	regexDollarExpr = regexp.MustCompile(`\${\s*(?:\"([^"]*)\":)?(\.?(?:\w*)(?:\.\w*)*)(?:\:(\S))?(?:\:(\S))?\s*}`)
-	populateEnvVars()
 	ResetContext()
+	populateEnvVars()
 }
 
 // Top level object of application configuration settings
