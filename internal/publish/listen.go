@@ -30,7 +30,7 @@ func ListenAsync(serverRoot string, addr *url.URL) (*http.Server, error) {
 			Handler: http.FileServer(http.Dir(serverRoot)),
 		}
 		go func() {
-			srv.Serve(l)
+			_ = srv.Serve(l)
 		}()
 		return srv, nil
 	default:

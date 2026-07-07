@@ -64,7 +64,9 @@ func NewSSHDevice(c *configuration.DeviceConfig, log io.Writer) (device.Device, 
 		err       error
 		sshconfig configuration.SSHClientEndpoint
 	)
-	c.Decode(&sshconfig)
+	if err = c.Decode(&sshconfig); err != nil {
+		return nil, err
+	}
 
 	if err = d.connectSSHClient(&sshconfig); err != nil {
 		return nil, err

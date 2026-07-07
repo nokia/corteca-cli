@@ -117,7 +117,7 @@ func PromptForProgress(label string) chan<- ProgressUpdate {
 			diff := current - bar.Current
 			bar.Add(diff)
 		}
-		bar.Stop()
+		_, _ = bar.Stop()
 	}()
 	return ch
 }

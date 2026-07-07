@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/spf13/afero"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRenderTemplateFile(t *testing.T) {
@@ -18,8 +19,8 @@ func TestRenderTemplateFile(t *testing.T) {
 	templateContent := "Hello, {{.Name}}!"
 	templateDir := "/project"
 	templateFile := "template.txt"
-	fs.MkdirAll(templateDir, 0755)
-	afero.WriteFile(fs, filepath.Join(templateDir, templateFile), []byte(templateContent), 0644)
+	require.NoError(t, fs.MkdirAll(templateDir, 0755))
+	require.NoError(t, afero.WriteFile(fs, filepath.Join(templateDir, templateFile), []byte(templateContent), 0644))
 
 	testCases := []struct {
 		name           string

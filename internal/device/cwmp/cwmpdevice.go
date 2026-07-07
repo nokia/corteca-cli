@@ -198,7 +198,7 @@ func (c *CWMPDevice) sendConnectionRequest(cpe *configuration.HttpClientEndpoint
 		return fmt.Errorf("error sending connection request: %w", err)
 	}
 	defer resp.Body.Close()
-	c.log.Write(fmt.Appendf([]byte(""), "[%s] Connection Request (response: %s)\n", time.Now().Format(time.DateTime), resp.Status))
+	_, _ = c.log.Write(fmt.Appendf([]byte(""), "[%s] Connection Request (response: %s)\n", time.Now().Format(time.DateTime), resp.Status))
 	io.Copy(io.Discard, resp.Body)
 	tui.LogNormal("Connection Request sent to %s; status code: %d", url.String(), resp.StatusCode)
 	return nil
@@ -248,7 +248,7 @@ func (d *CWMPDevice) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d.log.Write(fmt.Appendf([]byte(""), "[%s] IN: %s %s %s\n",
+	_, _ = d.log.Write(fmt.Appendf([]byte(""), "[%s] IN: %s %s %s\n",
 		time.Now().Format(time.DateTime),
 		r.Method,
 		r.RequestURI,
@@ -264,7 +264,7 @@ func (d *CWMPDevice) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		d.log.Write([]byte("\n"))
+		_, _ = d.log.Write([]byte("\n"))
 		if len(env.Body.Messages) > 1 {
 			tui.LogNormal("%d messages received; ignoring all but first", len(env.Body.Messages))
 		} else if len(env.Body.Messages) == 0 {
@@ -276,10 +276,10 @@ func (d *CWMPDevice) handleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		d.SetSessionID(env.GetID())
 	}
 
-	d.log.Write(fmt.Appendf([]byte(""), "[%s] OUT:\n", time.Now().Format(time.DateTime)))
+	_, _ = d.log.Write(fmt.Appendf([]byte(""), "[%s] OUT:\n", time.Now().Format(time.DateTime)))
 	resp := <-d.out
 	d.writeHTTPResponse(w, http.StatusOK, resp)
-	d.log.Write([]byte("\n--------------------------------------------------------------------------------\n"))
+	_, _ = d.log.Write([]byte("\n--------------------------------------------------------------------------------\n"))
 }
 
 // write a reply to the response
