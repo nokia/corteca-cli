@@ -13,6 +13,18 @@ fail() { echo -e "${RED}✗ $1${RESET}"; exit 1; }
 warn() { echo -e "${YELLOW}⚠ $1${RESET}"; }
 header() { echo -e "\n${BOLD}=== $1 ===${RESET}"; }
 
+# ── Devcontainer guard ───────────────────────────────────────────────────────
+# Re-run inside the devcontainer if we're not already in one.
+if [ -z "${IN_DEVCONTAINER:-}" ] && [ -z "${REMOTE_CONTAINERS:-}" ] && [ -z "${CODESPACES:-}" ]; then
+    header "Not inside devcontainer — spinning it up"
+    if ! command -v devcontainer &>/dev/null; then
+        fail "devcontainer CLI not found.\n  Install: npm install -g @devcontainers/cli\n  Or open this repo in VS Code and use 'Reopen in Container'."
+    fi
+    WORKSPACE="$(cd "$(dirname "$0")/.." && pwd)"
+    devcontainer up --workspace-folder "$WORKSPACE" || fail "devcontainer up failed"
+    exec devcontainer exec --workspace-folder "$WORKSPACE" bash scripts/check.sh
+fi
+
 # ── Build ────────────────────────────────────────────────────────────────────
 header "Build"
 make || fail "build failed"

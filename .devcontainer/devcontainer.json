@@ -6,7 +6,11 @@
       "version": "latest",
       "moby": false
     },
-    "ghcr.io/devcontainers/features/node:1": {}
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "none",
+      "golangciLintVersion": "latest"
+    }
   },
   "postCreateCommand": "sudo apt-get update && sudo apt-get install -y msitools ",
   "customizations": {
@@ -22,7 +26,8 @@
     }
   },
   "remoteEnv": {
-    "PODMAN_USERNS": "keep-id"
+    "PODMAN_USERS": "keep-id",
+    "IN_DEVCONTAINER": "1"
   },
   "containerUser": "vscode"
 }
