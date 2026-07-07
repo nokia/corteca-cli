@@ -36,7 +36,7 @@ FROM builder-image AS build-stage
 WORKDIR /app
 COPY . .
 
-RUN make msi GOARCH=amd64 && \
+RUN make msix GOARCH=amd64 && \
     make deb GOARCH=amd64 && \
     make rpm GOARCH=amd64 && \
     make osx GOARCH=amd64 && \
