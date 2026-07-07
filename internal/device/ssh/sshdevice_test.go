@@ -179,7 +179,7 @@ func TestSSHDevice_PublicKeyAuth(t *testing.T) {
 	if err := pem.Encode(keyFile, &pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER}); err != nil {
 		t.Fatalf("write PEM key: %v", err)
 	}
-	keyFile.Close()
+	_ = keyFile.Close()
 
 	// Start a server that only accepts the generated public key (no password).
 	addr := startTestServer(t, "testuser", "", sshPubKey, withQuaggaProbe(func(cmd string) (string, uint32) {

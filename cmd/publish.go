@@ -21,11 +21,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	ociSuffix               = "oci"
-	rootfsSuffix            = "rootfs"
-	artifactNotFoundMessage = "No build artifact found for [%s,%s]"
-)
 
 var publishCmd = &cobra.Command{
 	Use:               "publish TARGET",
@@ -49,7 +44,7 @@ type RegistryConfig struct {
 func init() {
 	publishCmd.PersistentFlags().BoolVar(&skipLocalConfig, "global", false, "Affect global config & ignore any project-local configuration")
 	publishCmd.PersistentFlags().StringVarP(&artifact, "artifact", "a", "", "Specify the path to a an artifact to publish")
-	publishCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	_ = publishCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"tar.gz"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(publishCmd)
@@ -65,19 +60,19 @@ func doPublishApp(targetName string, wait bool) {
 	switch target.Method {
 	case "listen":
 		serverConfig := configuration.HttpServerEndpoint{}
-		target.Decode(&serverConfig)
+		assertOperation("decoding publish config", target.Decode(&serverConfig))
 		handleListen(serverConfig, wait)
 	case "put":
 		clientConfig := configuration.HttpClientEndpoint{}
-		target.Decode(&clientConfig)
+		assertOperation("decoding publish config", target.Decode(&clientConfig))
 		handlePut(clientConfig, artifact)
 	case "push":
 		clientConfig := configuration.HttpClientEndpoint{}
-		target.Decode(&clientConfig)
+		assertOperation("decoding publish config", target.Decode(&clientConfig))
 		handlePush(clientConfig, artifact)
 	case "registry-v2":
 		registryConfig := RegistryConfig{}
-		target.Decode(&registryConfig)
+		assertOperation("decoding publish config", target.Decode(&registryConfig))
 		handleRegistry(registryConfig, wait)
 	default:
 		failOperation(fmt.Sprintf("unknown publish method '%v'", target.Method))
@@ -93,7 +88,7 @@ func handleListen(target configuration.HttpServerEndpoint, wait bool) {
 	assertOperation("starting server", err)
 	if wait {
 		waitForInterruptSignal()
-		srv.Shutdown(context.Background())
+		assertOperation("shutting down server", srv.Shutdown(context.Background()))
 	} else {
 		fmt.Printf("Serving %v on %v\n", serverRoot, u.String())
 	}

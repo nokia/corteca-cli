@@ -79,7 +79,7 @@ app:
     runtime: {}            # OCI runtime spec overrides (see OCI Runtime Specification)
 ```
 
-### Fields
+### App Fields
 
 | Field                  | Type            | Description                                                                                                                                                 |
 | -------                | ------          | -------------                                                                                                                                               |
@@ -119,7 +119,7 @@ build:
         args: [ <arg>, … ]               # Arguments passed to the QEMU helper
 ```
 
-### Fields
+### Build Fields
 
 | Field                           | Type            | Default                      | Description                                                                                                                                 |
 | -------                         | ------          | ---------                    | -------------                                                                                                                               |
@@ -275,10 +275,10 @@ meaningful.
 
 The fields shared by all device types are:
 
-| Field          | Type              | Description                                                                                      |
-| -------        | ------            | -------------                                                                                    |
+| Field          | Type              | Description                                                                                          |
+| -------        | ------            | -------------                                                                                        |
 | `addr`         | string (template) | **(Required)** Connection URL. Its scheme (`ssh://`, `cwmp://`, `cwmps://`) selects the device type. |
-| `architecture` | string            | Architecture identifier matching an entry in `build.architectures`.                              |
+| `architecture` | string            | Architecture identifier matching an entry in `build.architectures`.                                  |
 
 ---
 
@@ -299,13 +299,13 @@ devices:
         privateKeyFile: <path/to/keyfile>   # Path to a PEM-encoded private key
 ```
 
-| Field            | Type              | Required | Description                                                                                                            |
-| -------          | ------            | -------- | -------------                                                                                                          |
+| Field            | Type              | Required | Description                                                                                                             |
+| -------          | ------            | -------- | -------------                                                                                                           |
 | `addr`           | string (template) | Yes      | SSH connection URL. Must use the `ssh://` scheme. Username and password may be embedded (e.g., `ssh://user:pass@host`). |
-| `username`       | string (template) | No       | SSH username. Overrides any username embedded in `addr`.                                                               |
-| `password`       | string (template) | No       | SSH password. Falls back to the password in `addr`, then prompts interactively if absent.                              |
-| `password2`      | string (template) | No       | Secondary (escalation) password required by certain device firmware (e.g., for Quagga deactivation).                  |
-| `privateKeyFile` | string (template) | No       | Path to a PEM-encoded private key file. When provided, public-key authentication is attempted first.                   |
+| `username`       | string (template) | No       | SSH username. Overrides any username embedded in `addr`.                                                                |
+| `password`       | string (template) | No       | SSH password. Falls back to the password in `addr`, then prompts interactively if absent.                               |
+| `password2`      | string (template) | No       | Secondary (escalation) password required by certain device firmware (e.g., for Quagga deactivation).                    |
+| `privateKeyFile` | string (template) | No       | Path to a PEM-encoded private key file. When provided, public-key authentication is attempted first.                    |
 
 ---
 
@@ -371,7 +371,7 @@ sequences:
 | Field           | Type              | Default   | Description                                                                                                                  |
 | -------         | ------            | --------- | -------------                                                                                                                |
 | `cmd`           | string (template) | —         | **(Required)** Command to execute. Interpreted differently per device type; see below.                                       |
-| `delay`         | string (duration) | `0`       | Time to wait after the step (or each retry) completes. Refer to [this](https://pkg.go.dev/time#ParseDuration) for syntax.   |
+| `delay`         | string (duration) | `0`       | Time to wait after the step (or each retry) completes. Refer to [this](https://pkg.go.dev/time#ParseDuration) for syntax.    |
 | `timeout`       | string (duration) | 5 minutes | Maximum execution time. If exceeded, the step is considered failed. Same syntax as `delay`.                                  |
 | `retries`       | uint              | `0`       | How many additional attempts to make if the step fails.                                                                      |
 | `ignoreFailure` | bool              | `false`   | When `true`, a failing step does not abort the sequence.                                                                     |
@@ -434,7 +434,7 @@ templates:
 
 Each key is a path to a Go template file (relative to the `.corteca` directory inside the project), and the corresponding value is the output path where the rendered result should be written.
 
-### Fields
+### Templates Fields
 
 | Field          | Description                                                              |
 | -------        | -------------                                                            |
@@ -456,7 +456,7 @@ ${ ["<prefix>":].<field.path>[:<kv-sep>[:<entry-sep>]] }
 ```
 
 | Part | Description |
-|------|-------------|
+| --- | --- |
 | `"<prefix>":` | Optional literal string prepended to each resolved value. |
 | `.<field.path>` | Dot-separated path into the context (e.g., `.app.name`, `.env.HOME`). |
 | `:<kv-sep>` | For **map** fields: separator between each key and its value (default: space). |
@@ -465,7 +465,7 @@ ${ ["<prefix>":].<field.path>[:<kv-sep>[:<entry-sep>]] }
 Examples:
 
 | Expression | Result |
-|------------|--------|
+| --- | --- |
 | `${ .app.name }` | Value of `app.name` |
 | `${ .app.version }` | Value of `app.version` |
 | `${ "v":.app.version }` | `v` prepended to `app.version` (e.g., `v1.2.0`) |
@@ -481,7 +481,7 @@ Template fields can reference other template fields; circular references will ca
 ### `.app` — Application Settings
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.app.name` | string | Application name. |
 | `.app.author` | string | Application author. |
 | `.app.version` | string | Application version string. |
@@ -494,7 +494,7 @@ Template fields can reference other template fields; circular references will ca
 ### `.build` — Build Settings
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.build.default` | string | Default target architecture name. |
 | `.build.options.outputType` | string | Build output type (`rootfs`, `oci`, or `docker`). |
 | `.build.options.debug` | bool | Whether debug mode is enabled. |
@@ -507,14 +507,14 @@ Template fields can reference other template fields; circular references will ca
 ### `.arch` and `.platform` — Current Architecture
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.arch` | string | Name of the target architecture currently being built (e.g., `aarch64`). Set during `build`, `regen`, and `exec`. |
 | `.platform` | string | Docker platform string for the current architecture (e.g., `linux/arm64`). Set alongside `.arch`. |
 
 ### `.artifact` — Build Artifact
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.artifact` | string | Absolute path to the current build artifact (e.g., `/project/dist/app-1.0-aarch64-oci.tar`). Set during `publish` and `exec`. |
 
 ### `.publish` — Active Publish Target
@@ -522,7 +522,7 @@ Template fields can reference other template fields; circular references will ca
 Populated when a publish target is selected (during `publish` or `exec` with a publish target).
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.publish.name` | string | Alias name of the active publish target. |
 | `.publish.method` | string | Delivery method of the active publish target. |
 
@@ -531,7 +531,7 @@ Populated when a publish target is selected (during `publish` or `exec` with a p
 Populated when a device is selected (during `exec`).
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.device.name` | string | Alias name of the active device. |
 | `.device.addr` | string (template) | Connection URL of the device. |
 | `.device.architecure` | string | Architecture identifier of the device. |
@@ -539,7 +539,7 @@ Populated when a device is selected (during `exec`).
 ### `.env` — Host Environment Variables
 
 | Field | Type | Description |
-|-------|------|-------------|
+| --- | --- | --- |
 | `.env` | map | All host environment variables at the time the command was invoked. Access individual variables as `.env.<NAME>` (e.g., `.env.HOME`, `.env.PATH`). |
 
 ---

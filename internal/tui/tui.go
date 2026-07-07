@@ -37,7 +37,7 @@ var (
 
 // If no-color flag is set or no terminal found then remove colored output
 func DefineOutputColor() {
-	if DisableColoredOutput || !(term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))) {
+	if DisableColoredOutput || !term.IsTerminal(int(os.Stdout.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
 		DisableColoredOutput = true
 		pterm.DisableColor()
 	}
@@ -64,13 +64,13 @@ func LogError(format string, args ...any) {
 
 func SetOutputColor(colorSeq string, out io.Writer) {
 	if !DisableColoredOutput {
-		fmt.Fprintf(out, colorSeq)
+		_, _ = fmt.Fprint(out, colorSeq)
 	}
 }
 
 func ResetOutputColor(out io.Writer) {
 	if !DisableColoredOutput {
-		fmt.Fprintf(out, CsReset)
+		_, _ = fmt.Fprint(out, CsReset)
 	}
 }
 

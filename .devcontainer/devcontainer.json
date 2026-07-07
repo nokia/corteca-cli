@@ -5,14 +5,19 @@
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
       "moby": false
-    }
+    },
+    "ghcr.io/devcontainers/features/node:1": {}
   },
   "postCreateCommand": "sudo apt-get update && sudo apt-get install -y msitools ",
   "customizations": {
     "vscode": {
       "extensions": [
         "streetsidesoftware.code-spell-checker",
-        "golang.Go"
+        "golang.Go",
+        "davidanson.vscode-markdownlint",
+        "github.vscode-github-actions",
+        "ms-azuretools.vscode-containers",
+        "ms-vscode.makefile-tools"
       ]
     }
   },

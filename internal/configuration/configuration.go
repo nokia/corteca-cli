@@ -359,9 +359,8 @@ func (conf *Settings) ReadFromFile(path string) error {
 	if err != nil {
 		return err
 	}
-	defer in.Close()
+	defer func() { _ = in.Close() }()
 	if err = ReadYamlInto(conf, in); err != nil {
-		in.Close()
 		return err
 	}
 
@@ -810,7 +809,7 @@ func readTemplateInfo(fullPath string) (info TemplateInfo, err error) {
 	if err != nil {
 		return TemplateInfo{}, err
 	}
-	defer yamlData.Close()
+	defer func() { _ = yamlData.Close() }()
 
 	if err = ReadYamlInto(&info, yamlData); err != nil {
 		return

@@ -2,12 +2,12 @@
 
 ## Prerequisites
 
-| Requirement | Version  | Notes                                          |
-| ----------- | -------- | ---------------------------------------------- |
-| Go          | ≥ 1.21   | Required to build from source                  |
-| Docker      | ≥ 23.0   | Required to build application container images |
-| Docker BuildKit | ≥ 0.11 | Required for `docker build --output`         |
-| make        | any      | Used to drive the build and install targets    |
+| Requirement     | Version  | Notes                                          |
+| -----------     | -------- | ---------------------------------------------- |
+| Go              | ≥ 1.21   | Required to build from source                  |
+| Docker          | ≥ 23.0   | Required to build application container images |
+| Docker BuildKit | ≥ 0.11   | Required for `docker build --output`           |
+| make            | any      | Used to drive the build and install targets    |
 
 ## Build locally
 

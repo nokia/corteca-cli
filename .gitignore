@@ -9,3 +9,4 @@ nfpm.yaml
 coverage.out
 
 .DS_Store
+.claude

@@ -44,7 +44,7 @@ func isBinary(entrypointPath string) (bool, string, error) {
 	if err != nil {
 		return false, "", fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	is_bin := false
 	const chunkSize = 4
 	buf := make([]byte, chunkSize)
@@ -73,7 +73,7 @@ func isScript(entrypointPath string) (bool, string, error) {
 	if err != nil {
 		return false, "", fmt.Errorf("failed to open file: %v", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	reader := bufio.NewReader(file)
 	line, err := reader.ReadString('\n')
 	if err != nil && err != io.EOF {
@@ -186,7 +186,7 @@ func verifyMachineCompatibility(path, targetArch string) error {
 	if err != nil {
 		return fmt.Errorf("ELF validation failed: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if f.Type != elf.ET_EXEC && f.Type != elf.ET_DYN {
 		return fmt.Errorf("invalid ELF type: %s", f.Type)

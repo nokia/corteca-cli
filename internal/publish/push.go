@@ -39,7 +39,7 @@ func GzipOpener(path string) tarball.Opener {
 
 		gz, err := gzip.NewReader(f)
 		if err != nil {
-			f.Close()
+			_ = f.Close()
 			return nil, err
 		}
 

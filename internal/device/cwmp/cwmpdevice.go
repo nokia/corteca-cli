@@ -197,9 +197,9 @@ func (c *CWMPDevice) sendConnectionRequest(cpe *configuration.HttpClientEndpoint
 	if err != nil {
 		return fmt.Errorf("error sending connection request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	_, _ = c.log.Write(fmt.Appendf([]byte(""), "[%s] Connection Request (response: %s)\n", time.Now().Format(time.DateTime), resp.Status))
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 	tui.LogNormal("Connection Request sent to %s; status code: %d", url.String(), resp.StatusCode)
 	return nil
 }
@@ -227,9 +227,10 @@ func (d *CWMPDevice) initServer(config *configuration.HttpServerEndpoint) error 
 	// Run server in a goroutine
 	go func() {
 		var err error
-		if u.Scheme == "http" {
+		switch u.Scheme {
+		case "http":
 			err = d.server.ListenAndServe()
-		} else if u.Scheme == "https" {
+		case "https":
 			err = d.server.ListenAndServeTLS(config.Certificate.String(), config.Key.String())
 		}
 		if err != nil && err != http.ErrServerClosed {
