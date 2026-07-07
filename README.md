@@ -7,7 +7,6 @@
 # Corteca Developer Toolkit
 
 [![Build](https://github.com/nokia/corteca-cli/actions/workflows/build.yml/badge.svg)](https://github.com/nokia/corteca-cli/actions/workflows/build.yml)
-[![Tests](https://github.com/nokia/corteca-cli/actions/workflows/test.yml/badge.svg)](https://github.com/nokia/corteca-cli/actions/workflows/test.yml)
 [![Coverage](https://codecov.io/gh/nokia/corteca-cli/branch/main/graph/badge.svg)](https://codecov.io/gh/nokia/corteca-cli)
 
 Corteca Developer Toolkit is a command-line tool for building, packaging, and
