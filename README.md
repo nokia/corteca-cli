@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD033 MD041-->
 <div align="center">
   <img src="./doc/images/nokia_logo_blue.svg" width="250" alt="Nokia Logo" title="Nokia Logo" />
 </div>
+<!-- markdownlint-enable MD033 MD041-->
 
 # Corteca Developer Toolkit
 
@@ -69,95 +71,24 @@ supported:
 Devices and the sequences to run on them are configured in `corteca.yaml` and
 can be targeted by name when running `corteca exec`.
 
-<hr>
-
-## Prerequisites
-
-| Requirement | Version  | Notes                                          |
-| ----------- | -------- | ---------------------------------------------- |
-| Go          | ≥ 1.21   | Required to build from source                  |
-| Docker      | ≥ 23.0   | Required to build application container images |
-| Docker BuildKit | ≥ 0.11 | Required for `docker build --output`         |
-| make        | any      | Used to drive the build and install targets    |
-
 ## Build
 
-Clone the repository and run:
-
-```bash
-$ make
-```
-
-The compiled binary is placed in the `dist/` directory.
-
-### Build using Docker
-
-If you do not have a local Go toolchain, you can build entirely inside Docker
-(BuildKit is required):
-
-```bash
-$ docker build --output ./dist .
-```
-
-#### Installing Docker BuildKit
-
-On Docker Engine < 23.0, BuildKit must be enabled manually. On Ubuntu 22.04:
-
-```bash
-$ sudo apt-get install docker-buildx-plugin
-```
-
-Then either prefix each `docker build` invocation with `DOCKER_BUILDKIT=1`, or
-follow the [official instructions](https://docs.docker.com/build/buildkit/#getting-started)
-to enable it globally.
-
-> For the full build guide see [doc/BUILD.md](doc/BUILD.md).
+For build instructions see [doc/BUILD.md](doc/BUILD.md).
 
 ## Install
 
-### Install manually from source
-
-You can run the below command to build the application and install the binary to
-the `/usr/bin` folder and the default configuration files to the `/etc/corteca`
-folder:
-
-```bash
-$ sudo make install
-```
-
-To remove a previous manual installation
-
-```bash
-$ sudo make uninstall
-```
-
-You can customize the destination folder by overriding the `$DESTDIR`
-environment variable:
-
-```bash
-# no sudo required; will be installed to ~/.local/share/usr/bin
-$ DESTDIR=~/.local/share make install
-```
-
-### Install with package manager
-
-If you are using debian/ubuntu or redhat-based distributions, you can create a relevant package and let your package manager handle installation. E.g. for ubuntu:
-
-```bash
-$ make deb
-$ make rpm
-```
+For installation instructions see [doc/INSTALL.md](doc/INSTALL.md).
 
 ## Getting Started
 
 The fastest way to get up and running is to create a project, build it, and
 publish it to a local registry in three commands:
 
-```bash
-$ corteca create my-app          # scaffold a new application project
-$ cd my-app
-$ corteca build aarch64          # build an OCI image for aarch64
-$ corteca publish localRegistry  # push it to a local OCI registry
+```shell
+corteca create my-app          # scaffold a new application project
+cd my-app
+corteca build aarch64          # build an OCI image for aarch64
+corteca publish localRegistry  # push it to a local OCI registry
 ```
 
 For a step-by-step walkthrough — including how to configure a device target and
@@ -180,7 +111,7 @@ directory, so `corteca` commands work from any subdirectory of a project.
 The `corteca config` command can be used to inspect or modify any value
 without editing YAML by hand:
 
-```bash
+```shell
 corteca config get publish          # show all publish targets
 corteca config set app.version 1.1  # update a value
 ```
@@ -198,14 +129,36 @@ reference](doc/Configuration.md).
 | [`corteca publish`](doc/reference/corteca_publish.md) | Upload or serve the build artifact via a configured publish target |
 | [`corteca exec`](doc/reference/corteca_exec.md) | Run a named deployment sequence on a configured device |
 | [`corteca config`](doc/reference/corteca_config.md) | Inspect or modify configuration values |
+| [`corteca config add`](doc/reference/corteca_config_add.md) | Add a configuration value |
+| [`corteca config get`](doc/reference/corteca_config_get.md) | Get a configuration value |
+| [`corteca config set`](doc/reference/corteca_config_set.md) | Set a configuration value |
 | [`corteca regen`](doc/reference/corteca_regen.md) | Regenerate template-derived project files |
-
-For a broader overview of all commands, flags, and usage patterns see
-[doc/USAGE.md](doc/USAGE.md).
 
 Every command also accepts `--help` for inline usage information:
 
-```bash
+```shell
 corteca --help
 corteca build --help
+```
+
+## Application Templates
+
+`corteca` scans for available templates in a `templates/` folder that resides in the global config folder (defaults to `$HOME/.config/corteca`). You can override the global config folder using the `--configRoot` flag.
+
+Each subfolder containing a `.template-info.yaml` file will be treated as a template and will be rendered with all configuration variables available for rendering. For more information, see the [Configuration](#configuration) section above.
+
+Here is an overview of the content of `.template-info.yaml`:
+
+```yaml
+# Name of the template
+name: "foobar"
+description: "Short template description"
+dependencies:
+    compile: [ foo ] # Dependencies needed during compile
+    runtime: [ bar ] # Dependencies needed during runtime
+# Dynamic files that need regeneration during the project's lifecycle
+regenFiles:
+    .corteca/foo.template: foo # Mapping template filepath to regenerated filepath
+# A collection of custom options available for rendering
+options:
 ```
