@@ -1,4 +1,4 @@
-ARG GO_VERSION=1.21
+ARG GO_VERSION=1.25
 
 FROM golang:${GO_VERSION}-alpine AS builder-image
 RUN apk update && apk add \
@@ -13,7 +13,7 @@ RUN apk update && apk add \
     zip \
     git \
     gettext
-RUN go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.40.0
+RUN go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.0
 
 FROM builder-image AS go-test-coverage-stage
 WORKDIR /test-coverage
