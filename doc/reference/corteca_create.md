@@ -1,6 +1,6 @@
 # `create`
 
-The create command is used to generate a new application skeleton/template based on a selected programming language (see details about templates [here](../USAGE.md#application-templates)). This command can be configured interactively or through specified flags.
+The create command is used to generate a new application skeleton/template based on a selected programming language [see details about templates](../USAGE.md#application-templates). This command can be configured interactively or through specified flags.
 
 ## Usage
 

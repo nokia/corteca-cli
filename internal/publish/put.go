@@ -68,7 +68,7 @@ func HttpPut(filePath string, url url.URL, token string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	prog := tui.PromptForProgress(fmt.Sprintf("Uploading %s", fileName))
 	defer close(prog)
@@ -98,7 +98,7 @@ func HttpPut(filePath string, url url.URL, token string) error {
 		return err
 	}
 
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("server returned non-successful status: %s", resp.Status)

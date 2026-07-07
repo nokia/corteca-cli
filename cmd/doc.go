@@ -48,7 +48,7 @@ func doGenerateDocumentation(cmdNames []string) {
 				continue
 			}
 			cmdFile := createMdFile(cmd)
-			defer cmdFile.Close()
+			defer func() { _ = cmdFile.Close() }()
 			err = generateMarkdown(cmd, cmdFile, false)
 			assertOperation("generating documentation for corteca commands", err)
 		}
@@ -67,7 +67,7 @@ func doGenerateDocumentation(cmdNames []string) {
 				index--
 
 				cmdFile := createMdFile(cmd)
-				defer cmdFile.Close()
+				defer func() { _ = cmdFile.Close() }()
 				err = generateMarkdown(cmd, cmdFile, false)
 				assertOperation("generating documentation for specific corteca command(s)", err)
 			}
@@ -82,30 +82,38 @@ func doGenerateDocumentation(cmdNames []string) {
 		if len(notMatchedCmds) == 0 {
 			fmt.Println("Cortecacli's commands documentation has generated successfuly!")
 		} else {
-			fmt.Fprintf(os.Stdout, "The following commands are not part of cortecacli: %s\n", notMatchedCmds)
+			_, _ = fmt.Fprintf(os.Stdout, "The following commands are not part of cortecacli: %s\n", notMatchedCmds)
 		}
 	} else {
-		fmt.Fprintf(os.Stdout, "No command documentation was generated\nThe following commands are not part of cortecacli: %s\n", notMatchedCmds)
+		_, _ = fmt.Fprintf(os.Stdout, "No command documentation was generated\nThe following commands are not part of cortecacli: %s\n", notMatchedCmds)
 	}
 }
 
 func generateMarkdown(cmd *cobra.Command, cmdFile *os.File, isSubcmd bool) error {
 	// Write command usage
 	if isSubcmd {
-		_, writeToFileErr = cmdFile.WriteString(fmt.Sprintf("### Corteca %s %s\n\n%s\n\n", cmd.Parent().Name(), cmd.Name(), cmd.Long))
+		_, writeToFileErr = fmt.Fprintf(cmdFile, "### Corteca %s %s\n\n%s\n\n", cmd.Parent().Name(), cmd.Name(), cmd.Long)
 	} else {
-		_, writeToFileErr = cmdFile.WriteString(fmt.Sprintf("## Corteca %s\n\n%s\n\n", cmd.Name(), cmd.Long))
+		_, writeToFileErr = fmt.Fprintf(cmdFile, "## Corteca %s\n\n%s\n\n", cmd.Name(), cmd.Long)
 	}
 	if writeToFileErr != nil {
 		return writeToFileErr
 	}
-	cmdFile.WriteString(fmt.Sprintf("### Usage:\n\n```\n%s\n```\n\n", cmd.UseLine()))
-	cmdFile.WriteString(fmt.Sprintf("### Flags:\n\n```\n%s%s\n```\n\n", cmd.InheritedFlags().FlagUsages(), cmd.LocalFlags().FlagUsages()))
-	cmdFile.WriteString(fmt.Sprintf("### Example:\n\n```\n%s\n```\n\n", cmd.Example))
+	if _, err := fmt.Fprintf(cmdFile, "### Usage:\n\n```\n%s\n```\n\n", cmd.UseLine()); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmdFile, "### Flags:\n\n```\n%s%s\n```\n\n", cmd.InheritedFlags().FlagUsages(), cmd.LocalFlags().FlagUsages()); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(cmdFile, "### Example:\n\n```\n%s\n```\n\n", cmd.Example); err != nil {
+		return err
+	}
 
 	// Append subcommands to parent command's documentation, if any
 	if len(cmd.Commands()) > 0 {
-		cmdFile.WriteString("## Subcommands:\n\n")
+		if _, err := fmt.Fprintf(cmdFile, "## Subcommands:\n\n"); err != nil {
+			return err
+		}
 		for _, subCmd := range cmd.Commands() {
 			// Recursive call for nested subcommands
 			err := generateMarkdown(subCmd, cmdFile, true)
@@ -113,7 +121,9 @@ func generateMarkdown(cmd *cobra.Command, cmdFile *os.File, isSubcmd bool) error
 		}
 	}
 
-	cmdFile.WriteString("\n")
+	if _, err := fmt.Fprintf(cmdFile, "\n"); err != nil {
+		return err
+	}
 	return nil
 }
 

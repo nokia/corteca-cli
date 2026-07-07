@@ -61,20 +61,22 @@ func init() {
 	rootCmd.SetVersionTemplate("{{.Short}} v{{.Version}}\n")
 	rootCmd.CompletionOptions.HiddenDefaultCmd = true
 	rootCmd.PersistentFlags().StringArrayVarP(&configOverrides, "config", "c", []string{}, "Override a configuration value in the form of a 'key=value' pair")
-	rootCmd.RegisterFlagCompletionFunc("config", validConfigArgsFunc)
+	_ = rootCmd.RegisterFlagCompletionFunc("config", validConfigArgsFunc)
 	rootCmd.PersistentFlags().StringVarP(&systemConfigRoot, "configRoot", "r", systemConfigRoot, "Override configuration root folder")
-	rootCmd.RegisterFlagCompletionFunc("configRoot", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	_ = rootCmd.RegisterFlagCompletionFunc("configRoot", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
 	rootCmd.PersistentFlags().StringVarP(&projectRoot, "projectRoot", "C", projectRoot, "Specify project root folder")
-	rootCmd.RegisterFlagCompletionFunc("projectRoot", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	_ = rootCmd.RegisterFlagCompletionFunc("projectRoot", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return nil, cobra.ShellCompDirectiveFilterDirs
 	})
 	rootCmd.PersistentFlags().BoolVar(&tui.DisableColoredOutput, "no-color", false, "Disables colored stdout|stderr output")
 }
 
 func Execute() {
-	rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
 }
 
 func readLocalConfiguration() {
@@ -206,16 +208,6 @@ func requireProjectContext() {
 	configuration.GetCmdContext().Build = &config.Build
 }
 
-func getAppNameFromArtifact(artifactPath string) string {
-	artifactName := filepath.Base(artifactPath)
-	splitedArtifactName := strings.SplitN(artifactName, "-", 2)
-	// If artifact name doesn't contain hyphens we consider the form "appName.tar.gz", else we consider App.Name the string up to the first hyphen.
-	if len(splitedArtifactName) == 1 {
-		return strings.TrimSuffix(splitedArtifactName[0], ".tar.gz")
-	} else {
-		return splitedArtifactName[0]
-	}
-}
 
 func requireBuildArtifact() {
 	if artifact != "" {

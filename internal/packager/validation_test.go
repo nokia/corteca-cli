@@ -295,30 +295,18 @@ func createSymlink(t *testing.T, target, link string) {
 
 
 func TestDiscoverEntrypointPath_SymlinkToBinary(t *testing.T) {
-    tmpDir := t.TempDir()
-    bin := createBinaryFile(t, "", []byte{0x7F, 0x45, 0x4C, 0x46})
-	tmpPathToBinary := filepath.Join(tmpDir, bin)
-	link := "link"
-	tmpPathToLink := filepath.Join(tmpDir, link)
-    createSymlink(t, bin, link)
+	tmpDir := t.TempDir()
+	bin := createBinaryFile(t, tmpDir, []byte{0x7F, 0x45, 0x4C, 0x46})
+	tmpPathToLink := filepath.Join(tmpDir, "link")
+	createSymlink(t, "binaryfile", tmpPathToLink)
 
-	err := os.Rename(bin, tmpPathToBinary)
+	path, err := discoverEntrypointPath(tmpPathToLink, tmpDir)
 	if err != nil {
-		t.Fatalf("failed to move file: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	err = os.Rename(link, tmpPathToLink)
-	if err != nil {
-		t.Fatalf("failed to move file: %v", err)
+	if path != bin {
+		t.Errorf("expected path to be '%s', got '%s'", bin, path)
 	}
-
-    path, err := discoverEntrypointPath(tmpPathToLink, tmpDir)
-    if err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-    if path != tmpPathToBinary {
-        t.Errorf("expected path to be '%s', got '%s'", bin, path)
-    }
 }
 
 func TestDiscoverEntrypointPath_ScriptWithShebang(t *testing.T) {
@@ -337,32 +325,19 @@ func TestDiscoverEntrypointPath_ScriptWithShebang(t *testing.T) {
 }
 
 func TestDiscoverEntrypointPath_ChainSymlinkScriptBinary(t *testing.T) {
-    tmpDir := t.TempDir()
-    bin := createBinaryFile(t, tmpDir, []byte{0x7F, 0x45, 0x4C, 0x46})
-    script := createFile(t, "", "testfile.sh", "#!/binaryfile\n")
-    tmpPathToScript := filepath.Join(tmpDir, script)
-    link := "linkfile"
-    tmpPathToLink := filepath.Join(tmpDir, link)
-    createSymlink(t, script, link)
+	tmpDir := t.TempDir()
+	bin := createBinaryFile(t, tmpDir, []byte{0x7F, 0x45, 0x4C, 0x46})
+	_ = createFile(t, tmpDir, "testfile.sh", "#!/binaryfile\n")
+	tmpPathToLink := filepath.Join(tmpDir, "linkfile")
+	createSymlink(t, "testfile.sh", tmpPathToLink)
 
-    err := os.Rename(script, tmpPathToScript)
+	path, err := discoverEntrypointPath(tmpPathToLink, tmpDir)
 	if err != nil {
-		t.Fatalf("failed to move file: %v", err)
+		t.Fatalf("unexpected error: %v", err)
 	}
-
-	err = os.Rename(link, tmpPathToLink)
-	if err != nil {
-		t.Fatalf("failed to move file: %v", err)
+	if path != bin {
+		t.Errorf("expected path to be '%s', got '%s'", bin, path)
 	}
-
-    path, err := discoverEntrypointPath(tmpPathToLink, tmpDir)
-    if err != nil {
-        t.Fatalf("unexpected error: %v", err)
-    }
-    expected := bin
-    if path != expected {
-        t.Errorf("expected path to be '%s', got '%s'", expected, path)
-    }
 }
 
 func TestDiscoverEntrypointPath_UnknownFileType(t *testing.T) {

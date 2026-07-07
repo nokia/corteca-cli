@@ -86,7 +86,7 @@ func startTestServer(t *testing.T, expectedUsername, password string, authorized
 	if err != nil {
 		t.Fatalf("startTestServer: listen: %v", err)
 	}
-	t.Cleanup(func() { ln.Close() })
+	t.Cleanup(func() { _ = ln.Close() })
 
 	go func() {
 		for {
@@ -106,12 +106,12 @@ func serveConn(conn net.Conn, cfg *ssh.ServerConfig, handler cmdHandlerFunc) {
 	if err != nil {
 		return // auth failure or protocol error — nothing to do
 	}
-	defer sshConn.Close()
+	defer func() { _ = sshConn.Close() }()
 	go ssh.DiscardRequests(reqs)
 
 	for newChan := range chans {
 		if newChan.ChannelType() != "session" {
-			newChan.Reject(ssh.UnknownChannelType, "unsupported channel type")
+			_ = newChan.Reject(ssh.UnknownChannelType, "unsupported channel type")
 			continue
 		}
 		ch, requests, err := newChan.Accept()
@@ -127,22 +127,22 @@ func serveSession(ch ssh.Channel, reqs <-chan *ssh.Request, handler cmdHandlerFu
 	// exec request, the channel is closed. This causes the client-side
 	// s.wait goroutine's "for msg := range reqs" loop to exit, which populates
 	// s.exitStatus and unblocks session.Wait() — preventing a deadlock.
-	defer ch.Close()
+	defer func() { _ = ch.Close() }()
 
 	for req := range reqs {
 		switch req.Type {
 		case "exec":
 			if len(req.Payload) < 4 {
-				req.Reply(false, nil)
+				_ = req.Reply(false, nil)
 				continue
 			}
 			n := binary.BigEndian.Uint32(req.Payload[:4])
 			if uint32(len(req.Payload)) < 4+n {
-				req.Reply(false, nil)
+				_ = req.Reply(false, nil)
 				continue
 			}
 			cmd := string(req.Payload[4 : 4+n])
-			req.Reply(true, nil)
+			_ = req.Reply(true, nil)
 
 			// Call the handler synchronously. For normal commands this returns
 			// quickly. For the context-cancellation test the handler blocks on
@@ -166,7 +166,7 @@ func serveSession(ch ssh.Channel, reqs <-chan *ssh.Request, handler cmdHandlerFu
 			// other channel requests the client may send while the handler is
 			// running or between commands.
 			if req.WantReply {
-				req.Reply(false, nil)
+				_ = req.Reply(false, nil)
 			}
 		}
 	}

@@ -1,6 +1,8 @@
+<!-- markdownlint-disable MD033 MD041-->
 <div align="center">
   <img src="./doc/images/nokia_logo_blue.svg" width="250" alt="Nokia Logo" title="Nokia Logo" />
 </div>
+<!-- markdownlint-enable MD033 MD041-->
 
 # Corteca Developer Toolkit
 
@@ -69,16 +71,14 @@ supported:
 Devices and the sequences to run on them are configured in `corteca.yaml` and
 can be targeted by name when running `corteca exec`.
 
-<hr>
-
 ## Prerequisites
 
-| Requirement | Version  | Notes                                          |
-| ----------- | -------- | ---------------------------------------------- |
-| Go          | ≥ 1.21   | Required to build from source                  |
-| Docker      | ≥ 23.0   | Required to build application container images |
-| Docker BuildKit | ≥ 0.11 | Required for `docker build --output`         |
-| make        | any      | Used to drive the build and install targets    |
+| Requirement      | Version | Notes                                          |
+|------------------|---------|------------------------------------------------|
+| Go               | ≥ 1.21  | Required to build from source                  |
+| Docker           | ≥ 23.0  | Required to build application container images |
+| Docker BuildKit  | ≥ 0.11  | Required for `docker build --output`           |
+| make             | any     | Used to drive the build and install targets    |
 
 ## Build
 
@@ -87,13 +87,13 @@ can be targeted by name when running `corteca exec`.
 To build locally, you need to have a Go toolchain installed. Clone the repository and run:
 
 ```bash
-$ make
+make
 ```
 
 The compiled binary is placed in the `dist/` directory. You can also build packages for your specific platform. The available `make` targets are `deb`, `rpm`, `osx` and `msix`:
 
 ```bash
-$ make rpm
+make rpm
 ```
 
 ### Build using Docker
@@ -101,7 +101,7 @@ $ make rpm
 If you do not have a local Go toolchain, you can build entirely inside Docker (BuildKit is required). The following command builds all supported packages:
 
 ```bash
-$ docker build --output ./dist .
+docker build --output ./dist .
 ```
 
 #### Selecting the Packages to Build
@@ -109,19 +109,19 @@ $ docker build --output ./dist .
 By default, packages are created for all architectures (`arm64` and `amd64`). You can select the architectires to build for by setting the `ARCH` build-time variable to the space-separated list of architectures to build for. For example, to only build packages for the `amd64` architecture run:
 
 ```bash
-$ docker build --build-arg ARCH="amd64" --output ./dist .
+docker build --build-arg ARCH="amd64" --output ./dist .
 ```
 
 The package types created by default are `deb`, `rpm`, `osx` and `msix`. To only build selected package types, set the `PACKAGE` build-time variable to the space-separated list of package types to build. The following command only builds `deb` and `rpm` packages on all architectures:
 
 ```bash
-$ docker build --build-arg PACKAGE="deb rpm" --output ./dist .
+docker build --build-arg PACKAGE="deb rpm" --output ./dist .
 ```
 
 By setting both the `ARCH` and `PACKAGE` build-time variables, you can further limit the build scope to specific packages. For example, to only build the `deb` package for the `amd64` architecture, run:
 
 ```bash
-$ docker build --build-arg ARCH="amd64" --build-arg PACKAGE="deb" --output ./dist .
+docker build --build-arg ARCH="amd64" --build-arg PACKAGE="deb" --output ./dist .
 ```
 
 #### Installing Docker BuildKit
@@ -129,7 +129,7 @@ $ docker build --build-arg ARCH="amd64" --build-arg PACKAGE="deb" --output ./dis
 On Docker Engine < 23.0, BuildKit must be enabled manually. On Ubuntu 22.04:
 
 ```bash
-$ sudo apt-get install docker-buildx-plugin
+sudo apt-get install docker-buildx-plugin
 ```
 
 Then either prefix each `docker build` invocation with `DOCKER_BUILDKIT=1`, or
@@ -145,13 +145,13 @@ the `/usr/bin` folder and the default configuration files to the `/etc/corteca`
 folder:
 
 ```bash
-$ sudo make install
+sudo make install
 ```
 
 To remove a previous manual installation
 
 ```bash
-$ sudo make uninstall
+sudo make uninstall
 ```
 
 You can customize the destination folder by overriding the `$DESTDIR`
@@ -167,8 +167,8 @@ $ DESTDIR=~/.local/share make install
 If you are using debian/ubuntu or redhat-based distributions, you can create a relevant package and let your package manager handle installation. E.g. for ubuntu:
 
 ```bash
-$ make deb
-$ make rpm
+make deb
+make rpm
 ```
 
 ## Getting Started
@@ -177,10 +177,10 @@ The fastest way to get up and running is to create a project, build it, and
 publish it to a local registry in three commands:
 
 ```bash
-$ corteca create my-app          # scaffold a new application project
-$ cd my-app
-$ corteca build aarch64          # build an OCI image for aarch64
-$ corteca publish localRegistry  # push it to a local OCI registry
+corteca create my-app          # scaffold a new application project
+cd my-app
+corteca build aarch64          # build an OCI image for aarch64
+corteca publish localRegistry  # push it to a local OCI registry
 ```
 
 For a step-by-step walkthrough — including how to configure a device target and

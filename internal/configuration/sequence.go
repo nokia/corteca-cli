@@ -129,7 +129,9 @@ func (sm *SequenceMap) executeSequenceSteps(executor CommandExecutor, seqName st
 		// TODO: provide option to suppress output
 		tui.SetOutputColor(tui.CBlue, os.Stdout)
 		enc := yaml.NewEncoder(os.Stdout)
-		enc.Encode(res)
+		if err := enc.Encode(res); err != nil {
+			return fmt.Errorf("failed to encode step result: %w", err)
+		}
 		tui.ResetOutputColor(os.Stdout)
 	}
 	return nil

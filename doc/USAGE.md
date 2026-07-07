@@ -9,9 +9,9 @@
 
 - [`corteca build`](reference/corteca_build.md)
 - [`corteca config`](reference/corteca_config.md)
-   - [`corteca config add`](reference/corteca_config_add.md)
-   - [`corteca config get`](reference/corteca_config_get.md)
-   - [`corteca config set`](reference/corteca_config_set.md)
+  - [`corteca config add`](reference/corteca_config_add.md)
+  - [`corteca config get`](reference/corteca_config_get.md)
+  - [`corteca config set`](reference/corteca_config_set.md)
 - [`corteca create`](reference/corteca_create.md)
 - [`corteca exec`](reference/corteca_exec.md)
 - [`corteca publish`](reference/corteca_publish.md)

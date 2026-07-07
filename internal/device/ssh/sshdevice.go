@@ -20,7 +20,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
 	stdssh "golang.org/x/crypto/ssh"
 )
 
@@ -41,10 +40,6 @@ const (
 	deactivateQuaggaCmd = "sed -i 's#/usr/bin/vtysh#/bin/ash#' /etc/passwd"
 	maxNumRetries       = 3
 	defaultSSHPort      = "22"
-
-	authSSHPassword  = "password"
-	authSSHPublicKey = "publicKey"
-	cmdCPUArch       = "uname -m"
 )
 
 type SSHDevice struct {
@@ -64,7 +59,9 @@ func NewSSHDevice(c *configuration.DeviceConfig, log io.Writer) (device.Device, 
 		err       error
 		sshconfig configuration.SSHClientEndpoint
 	)
-	c.Decode(&sshconfig)
+	if err = c.Decode(&sshconfig); err != nil {
+		return nil, err
+	}
 
 	if err = d.connectSSHClient(&sshconfig); err != nil {
 		return nil, err
@@ -78,7 +75,7 @@ func NewSSHDevice(c *configuration.DeviceConfig, log io.Writer) (device.Device, 
 		if err := deactivateQuagga(d.client, passwd2); err != nil {
 			return nil, err
 		}
-		d.client.Close()
+		_ = d.client.Close()
 		tui.LogNormal("Need to reconnect...")
 		return NewSSHDevice(c, log)
 	}
@@ -115,7 +112,7 @@ func (d *SSHDevice) executeCommandString(ctx context.Context, cmd string) (any, 
 	if err != nil {
 		return nil, fmt.Errorf("cannot start SSH command session: %w", err)
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 	output := bytes.NewBuffer(make([]byte, 0, 512))
 	session.Stdout = io.MultiWriter(d.log, output)
 	session.Stderr = d.log
@@ -141,7 +138,7 @@ func (d *SSHDevice) executeCommandString(ctx context.Context, cmd string) (any, 
 		}
 
 	case <-ctx.Done():
-		_ = session.Signal(ssh.SIGKILL)
+		_ = session.Signal(stdssh.SIGKILL)
 		return nil, ctx.Err()
 	}
 }
@@ -213,7 +210,7 @@ func (d *SSHDevice) connectSSHClient(sshconfig *configuration.SSHClientEndpoint)
 	// connect to stdssh server
 	d.client, err = stdssh.Dial("tcp", u.Host, config)
 	if err != nil {
-		fmt.Fprintf(d.log, "\n=== New connection to %s at %s ===\n", u.Host, time.Now().Format(time.DateTime))
+		_, _ = fmt.Fprintf(d.log, "\n=== New connection to %s at %s ===\n", u.Host, time.Now().Format(time.DateTime))
 	}
 	return err
 }
@@ -223,7 +220,7 @@ func hasQuagga(client *stdssh.Client) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	var output bytes.Buffer
 	session.Stdout = &output
@@ -248,7 +245,7 @@ func deactivateQuagga(client *stdssh.Client, password2 string) error {
 	if err != nil {
 		return err
 	}
-	defer session.Close()
+	defer func() { _ = session.Close() }()
 
 	if err := session.RequestPty("xterm", 80, 40, stdssh.TerminalModes{}); err != nil {
 		return err
@@ -275,5 +272,5 @@ func deactivateQuagga(client *stdssh.Client, password2 string) error {
 }
 
 func (d *SSHDevice) Close() {
-	d.client.Close()
+	_ = d.client.Close()
 }

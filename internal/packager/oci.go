@@ -31,7 +31,7 @@ func writeBuildInfoJson(buildInfo map[string]string, rootfsPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.Write(data)
 	if err != nil {
@@ -50,7 +50,7 @@ func writeRuntimeSpecToJSON(appSettings configuration.AppSettings, filePath stri
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	_, err = file.Write(data)
 	if err != nil {

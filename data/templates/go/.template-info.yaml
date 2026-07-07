@@ -1,6 +1,6 @@
 name: "go"
 description: "An application template for the Go language."
 dependencies:
-  compile: [ go, make ]
-  runtime: [ json-c ]
+  compile: [go, make]
+  runtime: [json-c]
 base: _base
