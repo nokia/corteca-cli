@@ -1,0 +1,33 @@
+{
+  "name": "Corteca CLI",
+  "image": "mcr.microsoft.com/devcontainers/go:1.24",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "version": "latest",
+      "moby": false
+    },
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "none",
+      "golangciLintVersion": "latest"
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y msitools ",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "streetsidesoftware.code-spell-checker",
+        "golang.Go",
+        "davidanson.vscode-markdownlint",
+        "github.vscode-github-actions",
+        "ms-azuretools.vscode-containers",
+        "ms-vscode.makefile-tools"
+      ]
+    }
+  },
+  "remoteEnv": {
+    "PODMAN_USERS": "keep-id",
+    "IN_DEVCONTAINER": "1"
+  },
+  "containerUser": "vscode"
+}
