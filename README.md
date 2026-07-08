@@ -82,21 +82,46 @@ can be targeted by name when running `corteca exec`.
 
 ## Build
 
-Clone the repository and run:
+### Building Locally
+
+To build locally, you need to have a Go toolchain installed. Clone the repository and run:
 
 ```bash
 $ make
 ```
 
-The compiled binary is placed in the `dist/` directory.
+The compiled binary is placed in the `dist/` directory. You can also build packages for your specific platform. The available `make` targets are `deb`, `rpm`, `osx` and `msix`:
+
+```bash
+$ make rpm
+```
 
 ### Build using Docker
 
-If you do not have a local Go toolchain, you can build entirely inside Docker
-(BuildKit is required):
+If you do not have a local Go toolchain, you can build entirely inside Docker (BuildKit is required). The following command builds all supported packages:
 
 ```bash
 $ docker build --output ./dist .
+```
+
+#### Selecting the Packages to Build
+
+By default, packages are created for all architectures (`arm64` and `amd64`). You can select the architectires to build for by setting the `ARCH` build-time variable to the space-separated list of architectures to build for. For example, to only build packages for the `amd64` architecture run:
+
+```bash
+$ docker build --build-arg ARCH="amd64" --output ./dist .
+```
+
+The package types created by default are `deb`, `rpm`, `osx` and `msix`. To only build selected package types, set the `PACKAGE` build-time variable to the space-separated list of package types to build. The following command only builds `deb` and `rpm` packages on all architectures:
+
+```bash
+$ docker build --build-arg PACKAGE="deb rpm" --output ./dist .
+```
+
+By setting both the `ARCH` and `PACKAGE` build-time variables, you can further limit the build scope to specific packages. For example, to only build the `deb` package for the `amd64` architecture, run:
+
+```bash
+$ docker build --build-arg ARCH="amd64" --build-arg PACKAGE="deb" --output ./dist .
 ```
 
 #### Installing Docker BuildKit
@@ -110,8 +135,6 @@ $ sudo apt-get install docker-buildx-plugin
 Then either prefix each `docker build` invocation with `DOCKER_BUILDKIT=1`, or
 follow the [official instructions](https://docs.docker.com/build/buildkit/#getting-started)
 to enable it globally.
-
-> For the full build guide see [doc/BUILD.md](doc/BUILD.md).
 
 ## Install
 
