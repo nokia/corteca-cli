@@ -36,13 +36,14 @@ FROM builder-image AS build-stage
 WORKDIR /app
 COPY . .
 
-RUN make msix GOARCH=amd64 && \
-    make deb GOARCH=amd64 && \
-    make rpm GOARCH=amd64 && \
-    make osx GOARCH=amd64 && \
-    make deb GOARCH=arm64 && \
-    make rpm GOARCH=arm64 && \
-    make osx GOARCH=arm64
+ARG ARCH="amd64 arm64"
+ARG PACKAGE="msix deb rpm osx"
+RUN for arch in ${ARCH}; do \
+      for pkg in ${PACKAGE}; do \
+        [ $pkg != msix -o $arch == amd64 ] || continue; \
+        make $pkg GOARCH=$arch || exit 1; \
+      done; \
+    done
 
 FROM scratch AS build-artifacts
 COPY --from=build-stage /app/dist /
