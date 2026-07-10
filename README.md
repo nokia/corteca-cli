@@ -75,7 +75,8 @@ can be targeted by name when running `corteca exec`.
 
 | Requirement | Version  | Notes                                          |
 | ----------- | -------- | ---------------------------------------------- |
-| Go          | ≥ 1.21   | Required to build from source                  |
+| Go          | ≥ 1.25   | Required to build from source                  |
+| nFPM        | ≥ 2.46   | Required to build packages locally             |
 | Docker      | ≥ 23.0   | Required to build application container images |
 | Docker BuildKit | ≥ 0.11 | Required for `docker build --output`         |
 | make        | any      | Used to drive the build and install targets    |
@@ -164,11 +165,19 @@ $ DESTDIR=~/.local/share make install
 
 ### Install with package manager
 
-If you are using debian/ubuntu or redhat-based distributions, you can create a relevant package and let your package manager handle installation. E.g. for ubuntu:
+If you are using debian/ubuntu or redhat-based distributions, you can create a relevant package and let your package manager handle installation (nFPM is required). E.g. for Ubuntu:
 
 ```bash
 $ make deb
 $ make rpm
+```
+
+#### Installing nFPM
+
+If an appropriate package is not available for your platform, you can install nFPM with:
+
+```bash
+$ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.0
 ```
 
 ## Getting Started
@@ -204,8 +213,8 @@ The `corteca config` command can be used to inspect or modify any value
 without editing YAML by hand:
 
 ```bash
-corteca config get publish          # show all publish targets
-corteca config set app.version 1.1  # update a value
+$ corteca config get publish          # show all publish targets
+$ corteca config set app.version 1.1  # update a value
 ```
 
 For a full reference of every configuration key, their types, defaults, and
@@ -229,6 +238,6 @@ For a broader overview of all commands, flags, and usage patterns see
 Every command also accepts `--help` for inline usage information:
 
 ```bash
-corteca --help
-corteca build --help
+$ corteca --help
+$ corteca build --help
 ```
