@@ -174,10 +174,10 @@ $ make rpm
 
 #### Installing nFPM
 
-If an sppropriate package is not available for your platform, you can install nFPM with:
+If an appropriate package is not available for your platform, you can install nFPM with:
 
-```
-go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.0
+```bash
+$ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.46.0
 ```
 
 ## Getting Started
@@ -213,8 +213,8 @@ The `corteca config` command can be used to inspect or modify any value
 without editing YAML by hand:
 
 ```bash
-corteca config get publish          # show all publish targets
-corteca config set app.version 1.1  # update a value
+$ corteca config get publish          # show all publish targets
+$ corteca config set app.version 1.1  # update a value
 ```
 
 For a full reference of every configuration key, their types, defaults, and
@@ -238,6 +238,6 @@ For a broader overview of all commands, flags, and usage patterns see
 Every command also accepts `--help` for inline usage information:
 
 ```bash
-corteca --help
-corteca build --help
+$ corteca --help
+$ corteca build --help
 ```
