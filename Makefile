@@ -1,5 +1,5 @@
 VERSION := $(shell git describe --tags)
-BUILD_FLAGS := -x -v -ldflags "-X corteca/cmd.appVersion=$(VERSION)"
+BUILD_FLAGS := -x -v -ldflags "-X corteca/cmd.appVersion=$(VERSION) -s"
 HOSTOS ?= $(shell go env GOOS)
 HOSTARCH ?= $(shell go env GOARCH)
 DESTOS ?= $(HOSTOS)
