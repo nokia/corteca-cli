@@ -24,6 +24,9 @@ func execDocker(args ...string) error {
 }
 
 func enableCrossCompilation(crossCompileSettings configuration.CrossCompileConfig) error {
+	if !crossCompileSettings.Enabled {
+		return nil
+	}
 	args := []string{"run", "--rm", "--privileged", crossCompileSettings.Image}
 	args = append(args, crossCompileSettings.Args...)
 
