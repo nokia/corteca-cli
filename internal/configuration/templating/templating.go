@@ -94,7 +94,7 @@ func RenderTemplateToFile(fs afero.Fs, srcFile, destFile string, context any) er
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	if err := fileTmpl.Execute(out, context); err != nil {
 		return err

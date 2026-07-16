@@ -96,7 +96,7 @@ func doBuildApp(selectedArchitecture string) {
 	if rootfsPath == "" {
 		assertOperation(fmt.Sprintf("building '%s'", selectedArchitecture), builder.BuildRootFS(projectRoot, rootfsBuildPath, settings, config.App, config.Build))
 	} else {
-		fsutil.ExtractTarball(rootfsPath, rootfsBuildPath)
+		assertOperation(fmt.Sprintf("extracting rootfs from '%s'", rootfsPath), fsutil.ExtractTarball(rootfsPath, rootfsBuildPath))
 	}
 
 	// STEP 2: validate rootfs

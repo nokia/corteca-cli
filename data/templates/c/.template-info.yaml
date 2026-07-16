@@ -1,6 +1,6 @@
 name: "c"
 description: "An application template for the C language."
 dependencies:
-  compile: [ gcc, make, g++ ]
-  runtime: [ json-c ]
+  compile: [cc, make, g++]
+  runtime: [json-c]
 base: _base

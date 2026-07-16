@@ -33,7 +33,7 @@ var logFile string
 var publishTargetName string
 
 func init() {
-	execCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	_ = execCmd.RegisterFlagCompletionFunc("artifact", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 		return []string{"tar.gz, tar"}, cobra.ShellCompDirectiveFilterFileExt
 	})
 	rootCmd.AddCommand(execCmd)

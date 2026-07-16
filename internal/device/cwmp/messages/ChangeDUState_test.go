@@ -6,11 +6,11 @@ package messages_test
 
 import (
 	"bytes"
-	"github.com/nokia/corteca-cli/internal/configuration"
-	c "github.com/nokia/corteca-cli/internal/configuration"
-	"github.com/nokia/corteca-cli/internal/device/cwmp/messages"
 	"encoding/xml"
 	"testing"
+
+	c "github.com/nokia/corteca-cli/internal/configuration"
+	"github.com/nokia/corteca-cli/internal/device/cwmp/messages"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
@@ -91,10 +91,10 @@ var ChangeDUStateInputMsg = messages.ChangeDUState{
 }
 
 func setupContext() {
-	configuration.ResetContext()
-	configuration.GetCmdContext().App.Name = "image"
-	configuration.GetCmdContext().App.Version = "1.0.0"
-	configuration.GetCmdContext().App.DUID = "c0c4328b-18a4-4b3b-b1da-e8ea8d8f457d"
+	c.ResetContext()
+	c.GetCmdContext().App.Name = "image"
+	c.GetCmdContext().App.Version = "1.0.0"
+	c.GetCmdContext().App.DUID = "c0c4328b-18a4-4b3b-b1da-e8ea8d8f457d"
 }
 
 func TestChangeDUStateParseFromXML(t *testing.T) {

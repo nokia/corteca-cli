@@ -1,6 +1,6 @@
 name: "cpp"
 description: "An application template for the C++ language."
 dependencies:
-  compile: [ g++, make ]
-  runtime: [ libstdc++, json-c ]
+  compile: [g++, make]
+  runtime: [libstdc++, json-c]
 base: _base

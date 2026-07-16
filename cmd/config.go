@@ -113,7 +113,7 @@ func doGetConfigValue(key string) {
 	assertOperation("retrieving config value", err)
 	enc := yaml.NewEncoder(os.Stdout)
 	enc.SetIndent(configuration.YamlIndentation)
-	enc.Encode(field)
+	assertOperation("encoding config value", enc.Encode(field))
 }
 
 func doSetConfigValue(key, value string, append bool) {
@@ -144,7 +144,7 @@ func doEvalConfigValue(expr string) {
 	field := configuration.T(expr)
 	enc := yaml.NewEncoder(os.Stdout)
 	enc.SetIndent(configuration.YamlIndentation)
-	enc.Encode(field.String())
+	assertOperation("encoding config value", enc.Encode(field.String()))
 }
 
 func validConfigArgsFunc(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

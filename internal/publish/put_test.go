@@ -101,13 +101,13 @@ func TestHttpPut(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to create temporary file: %v", err)
 			}
-			defer os.Remove(tmpFile.Name())
+			defer func() { _ = os.Remove(tmpFile.Name()) }()
 
 			_, err = tmpFile.Write([]byte("test content"))
 			if err != nil {
 				t.Fatalf("Failed to write to temporary file: %v", tmpFile)
 			}
-			tmpFile.Close()
+			_ = tmpFile.Close()
 
 			var server *httptest.Server
 			if tc.setupServer != nil {
