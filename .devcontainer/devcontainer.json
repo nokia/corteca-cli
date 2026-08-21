@@ -1,6 +1,6 @@
 {
   "name": "Corteca CLI",
-  "image": "mcr.microsoft.com/devcontainers/go:1.24",
+  "image": "mcr.microsoft.com/devcontainers/go:1.25",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "version": "latest",
@@ -12,7 +12,7 @@
       "golangciLintVersion": "latest"
     }
   },
-  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y msitools ",
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y msitools",
   "customizations": {
     "vscode": {
       "extensions": [
