@@ -19,14 +19,19 @@
     ]
   },
   "mounts": [
+    {{- range $index, $mount := .app.runtime.mounts }}
+    {{- if $index }}, {{ end }}
     {
-      "destination": "/opt",
-      "source": "/var/run/ubus-session",
+      "destination": "{{- $mount.destination }}",
+      "source": "{{- $mount.source }}",
       "options": [
-        "rbind",
-        "rw"
+        {{- range $j, $opt := $mount.options }}
+        {{- if $j }}, {{ end }}
+        "{{ $opt }}"
+        {{- end }}
       ]
     }
+    {{- end }}
   ],
   "network": {
     "type": "share"
@@ -41,5 +46,23 @@
         "period": "100"
       }
     }
+  },
+  "hooks": {
+    "prestart": [
+      {{- range $index, $path := .app.runtime.hooks.prestart }}
+      {{- if $index }}, {{ end }}
+      {
+        "path": "{{ $path.path }}"
+      }
+      {{- end }}
+    ],
+    "poststop": [
+      {{- range $index, $path := .app.runtime.hooks.poststop }}
+      {{- if $index }}, {{ end }}
+      {
+        "path": "{{ $path.path }}"
+      }
+      {{- end }}
+    ]
   }
 }
