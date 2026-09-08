@@ -92,7 +92,9 @@ func initConfiguration() {
 	config = configuration.NewConfiguration()
 
 	// system global configuration
-	assertOperation("reading system global configuration", config.ReadConfiguration(systemConfigRoot))
+	if err := config.ReadConfiguration(systemConfigRoot); err != nil {
+		assertOperation("reading system global configuration", err)
+	}
 	configSystem = copystructure.Must(copystructure.Copy(config)).(configuration.Settings)
 
 	// user global configuration
