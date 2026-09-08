@@ -41,8 +41,10 @@ func BuildRootFS(appDir, tmpBuildPath string, settings configuration.Architectur
 		return fmt.Errorf("failed to create dist directory: %v", err)
 	}
 
-	if err := enableCrossCompilation(buildSettings.CrossCompile); err != nil {
-		return err
+	if buildSettings.CrossCompile.Enabled {
+		if err := enableCrossCompilation(buildSettings.CrossCompile); err != nil {
+			return err
+		}
 	}
 
 	args, err := prepareDockerBuildArgs(settings.Platform, buildSettings.Options, appDir, tmpBuildPath)
