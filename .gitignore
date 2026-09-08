@@ -2,8 +2,12 @@
 .cache
 .vscode/
 .zed/
+.claude/
 
 # test/build/package artifacts
 /dist
 nfpm.yaml
 coverage.out
+
+# OSX
+.DS_Store

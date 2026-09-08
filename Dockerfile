@@ -41,7 +41,7 @@ ARG PACKAGE="msix deb rpm osx"
 RUN for arch in ${ARCH}; do \
       for pkg in ${PACKAGE}; do \
         [ $pkg != msix -o $arch == amd64 ] || continue; \
-        make $pkg GOARCH=$arch || exit 1; \
+        make $pkg DESTARCH=$arch || exit 1; \
       done; \
     done
 
